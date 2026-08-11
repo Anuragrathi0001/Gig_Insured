@@ -38,9 +38,9 @@ const sendOtp = async (req, res) => {
 
     return res.status(200).json({
       status: 'success',
-      message: 'OTP sent successfully. For hackathon testing, inspect the server console for the 6-digit OTP code.',
+      message: 'OTP sent successfully.',
       mobile: cleanMobile,
-      devOtpHint: process.env.NODE_ENV !== 'production' ? otp : undefined
+      devOtpHint: otp
     });
   } catch (error) {
     return res.status(429).json({
@@ -76,49 +76,42 @@ const verifyOtp = async (req, res) => {
       });
     }
 
-    let worker = null;
-    let isNewWorker = false;
+    // Check if database is connected or fallback to in-memory store
     const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
+    let worker = null;
 
     if (isDbConnected) {
       worker = await Worker.findOne({ mobile: cleanMobile });
+
       if (!worker) {
-        isNewWorker = true;
-        const uniqueSuffix = Date.now().toString().slice(-6);
+        // Create new worker shell if new registration
         worker = await Worker.create({
-          name: `Delivery Partner ${uniqueSuffix}`,
           mobile: cleanMobile,
-          city: 'Bengaluru',
-          zone: 'Indiranagar',
+          name: '',
+          city: '',
+          zone: '',
           platform: 'Zomato',
-          workerId: `WRK-${cleanMobile.slice(-4)}-${uniqueSuffix}`,
+          workerId: `WORKER-${cleanMobile.slice(-4)}`,
           avgWeeklyIncome: 4500,
-          kycStatus: 'pending',
-          riskProfile: { zoneRiskScore: 45, weatherExposureScore: 60 },
-          upiId: `${cleanMobile}@paytm`
+          upiId: ''
         });
       }
     } else {
-      // Offline / Fallback In-Memory Mode
       console.log('[Auth]: MongoDB not connected. Using in-memory worker store.');
-      if (mockWorkerStore.has(cleanMobile)) {
-        worker = mockWorkerStore.get(cleanMobile);
-      } else {
-        isNewWorker = true;
-        const uniqueSuffix = Date.now().toString().slice(-6);
+      worker = mockWorkerStore.get(cleanMobile);
+
+      if (!worker) {
         worker = {
-          _id: `mock_id_${cleanMobile}_${uniqueSuffix}`,
-          name: `Delivery Partner ${uniqueSuffix}`,
+          _id: `worker_${Date.now()}`,
           mobile: cleanMobile,
-          city: 'Bengaluru',
-          zone: 'Indiranagar',
+          name: '',
+          city: '',
+          zone: '',
           platform: 'Zomato',
-          workerId: `WRK-${cleanMobile.slice(-4)}-${uniqueSuffix}`,
+          workerId: `WORKER-${cleanMobile.slice(-4)}`,
           avgWeeklyIncome: 4500,
-          kycStatus: 'verified',
-          riskProfile: { zoneRiskScore: 45, weatherExposureScore: 60 },
-          upiId: `${cleanMobile}@paytm`,
-          createdAt: new Date()
+          upiId: '',
+          isNew: true
         };
         mockWorkerStore.set(cleanMobile, worker);
       }
@@ -128,16 +121,14 @@ const verifyOtp = async (req, res) => {
 
     return res.status(200).json({
       status: 'success',
-      message: isNewWorker ? 'Account created successfully' : 'Login successful',
+      message: 'OTP verified successfully',
       token,
-      isNewWorker,
       worker
     });
   } catch (error) {
-    console.error(`[Verify OTP Error]: ${error.message}`);
     return res.status(500).json({
       status: 'error',
-      message: 'Server error during OTP verification'
+      message: error.message || 'Server error during OTP verification'
     });
   }
 };
@@ -145,18 +136,34 @@ const verifyOtp = async (req, res) => {
 /**
  * @desc    Get current authenticated worker profile
  * @route   GET /api/auth/me
- * @access  Private
+ * @access  Private (JWT Protected)
  */
 const getMe = async (req, res) => {
   try {
+    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
+    let worker = null;
+
+    if (isDbConnected) {
+      worker = await Worker.findById(req.worker.id).select('-__v');
+    } else {
+      worker = mockWorkerStore.get(req.worker.mobile) || req.worker;
+    }
+
+    if (!worker) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Worker profile not found'
+      });
+    }
+
     return res.status(200).json({
       status: 'success',
-      worker: req.worker
+      worker
     });
   } catch (error) {
     return res.status(500).json({
       status: 'error',
-      message: 'Failed to retrieve profile'
+      message: 'Failed to retrieve worker profile'
     });
   }
 };

@@ -2,9 +2,9 @@
 const otpStore = new Map(); // mobile -> { otp, expiresAt }
 const rateLimitStore = new Map(); // mobile -> Array of timestamps
 
-const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const MAX_OTP_REQUESTS_PER_HOUR = 5;
+const MAX_OTP_REQUESTS_PER_HOUR = 20;
 
 /**
  * Check rate limit for a given mobile number
@@ -37,7 +37,7 @@ const recordOtpRequest = (mobile) => {
 };
 
 /**
- * Generate 6-digit OTP and store it with 5-minute expiry
+ * Generate 6-digit OTP and store it with 10-minute expiry
  */
 const generateOtp = (mobile) => {
   const rateLimitCheck = checkRateLimit(mobile);
@@ -54,20 +54,28 @@ const generateOtp = (mobile) => {
 
   // Hackathon Console Logger
   console.log(`\n==================================================`);
-  console.log(`[SMS Gateway Mock] OTP for +91-${mobile}: [ ${otp} ] (Expires in 5 mins)`);
+  console.log(`[SMS Gateway Mock] OTP for +91-${mobile}: [ ${otp} ] (Expires in 10 mins)`);
   console.log(`==================================================\n`);
 
   return otp;
 };
 
 /**
- * Verify mobile + OTP
+ * Verify mobile + OTP (Accepts generated OTP or universal demo code '123456')
  */
 const verifyOtp = (mobile, inputOtp) => {
+  const cleanOtp = inputOtp.toString().trim();
+
+  // Universal demo code fallback for live pitch testing
+  if (cleanOtp === '123456') {
+    otpStore.delete(mobile);
+    return { valid: true };
+  }
+
   const record = otpStore.get(mobile);
 
   if (!record) {
-    return { valid: false, message: 'No OTP requested for this mobile number or it has expired.' };
+    return { valid: false, message: 'No OTP requested for this mobile number or it has expired. Try entering code 123456.' };
   }
 
   if (Date.now() > record.expiresAt) {
@@ -75,8 +83,8 @@ const verifyOtp = (mobile, inputOtp) => {
     return { valid: false, message: 'OTP has expired. Please request a new one.' };
   }
 
-  if (record.otp !== inputOtp.toString().trim()) {
-    return { valid: false, message: 'Invalid OTP code. Please check and try again.' };
+  if (record.otp !== cleanOtp) {
+    return { valid: false, message: 'Invalid OTP code. Please check and try again or use 123456.' };
   }
 
   // Clear OTP once verified successfully
