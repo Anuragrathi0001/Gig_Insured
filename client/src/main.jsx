@@ -5,11 +5,19 @@ import App from './App.jsx';
 import './index.css';
 
 // Set global Axios base URL for Vercel/production deployment
-const defaultBackendUrl = import.meta.env.DEV
-  ? 'http://localhost:5000'
-  : 'https://gig-insured.onrender.com';
+const envUrl = import.meta.env.VITE_API_URL;
+const isProd = import.meta.env.PROD || !import.meta.env.DEV;
 
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || defaultBackendUrl;
+let backendUrl = 'https://gig-insured.onrender.com';
+
+if (!isProd) {
+  backendUrl = envUrl || 'http://localhost:5000';
+} else if (envUrl && !envUrl.includes('localhost')) {
+  backendUrl = envUrl;
+}
+
+axios.defaults.baseURL = backendUrl;
+console.log('[Gig Insured API Target]:', axios.defaults.baseURL);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
