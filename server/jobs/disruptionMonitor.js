@@ -1,6 +1,5 @@
 const cron = require('node-cron');
-const mongoose = require('mongoose');
-const { ZoneConfig, TriggerEvent } = require('../models');
+const supabase = require('../config/supabase');
 const weatherService = require('../services/weatherService');
 const platformSignalService = require('../services/platformSignalService');
 const zoneData = require('../services/zoneData');
@@ -21,11 +20,12 @@ const evaluateDisruptions = async (bypassObservationWindow = false) => {
   console.log(`\n[Disruption Monitor Cron]: Starting 15-minute trigger evaluation cycle (Bypass Window: ${bypassObservationWindow})...`);
 
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let zones = [];
 
-    if (isDbConnected) {
-      zones = await ZoneConfig.find({}).lean();
+    if (process.env.SUPABASE_URL) {
+      const { data, error } = await supabase.from('zone_configs').select('*');
+      if (error) throw new Error(error.message);
+      zones = data || [];
     } else {
       zones = zoneData.getActiveZones();
     }
@@ -33,9 +33,17 @@ const evaluateDisruptions = async (bypassObservationWindow = false) => {
     const createdTriggers = [];
 
     for (const zone of zones) {
-      const weather = await weatherService.getZoneWeather(zone.zoneName);
-      const platformSignals = platformSignalService.getZonePlatformSignals(zone.zoneName);
-      const thresholds = zone.triggerThresholds || { rainMmPerHour: 20, heatTempCelsius: 40, aqiThreshold: 300, floodWaterLevelCm: 15 };
+      // Support both snake_case (Supabase) and camelCase (in-memory) zone name fields
+      const zoneName = zone.zone_name || zone.zoneName;
+      const thresholds = zone.trigger_thresholds || zone.triggerThresholds || {
+        rainMmPerHour: 20,
+        heatTempCelsius: 40,
+        aqiThreshold: 300,
+        floodWaterLevelCm: 15
+      };
+
+      const weather = await weatherService.getZoneWeather(zoneName);
+      const platformSignals = platformSignalService.getZonePlatformSignals(zoneName);
 
       const signalsUsed = [];
       let primaryDisruptionType = null;
@@ -67,7 +75,7 @@ const evaluateDisruptions = async (bypassObservationWindow = false) => {
         signalsUsed.push('Platform Civic Disruption Alert: Curfew / Strike Flag Active');
       }
 
-      // PRD Multi-Signal Requirement: >= 2 independent signals required to trigger payout
+      // PRD Multi-Signal Requirement: >= 2 independent signals required
       const hasMultiSignal = signalsUsed.length >= 2;
 
       if (hasMultiSignal && primaryDisruptionType) {
@@ -75,37 +83,52 @@ const evaluateDisruptions = async (bypassObservationWindow = false) => {
         const now = new Date();
 
         const triggerPayload = {
-          zone: zone.zoneName,
-          disruptionType: primaryDisruptionType,
+          zone: zoneName,
+          disruption_type: primaryDisruptionType,
           status,
-          signalsUsed,
-          confirmedAt: status === 'confirmed' ? now : null,
-          observationWindowStart: now,
-          dataSnapshot: {
+          signals_used: signalsUsed,
+          confirmed_at: status === 'confirmed' ? now.toISOString() : null,
+          observation_window_start: now.toISOString(),
+          data_snapshot: {
             weatherSnapshot: weather,
             platformSignalsSnapshot: platformSignals,
             thresholdsApplied: thresholds,
             multiSignalVerified: true,
             signalsCount: signalsUsed.length
           },
-          timestamp: now
+          timestamp: now.toISOString()
         };
 
         let triggerDoc = null;
-        if (isDbConnected) {
-          triggerDoc = await TriggerEvent.create(triggerPayload);
+
+        if (process.env.SUPABASE_URL) {
+          const { data: inserted, error } = await supabase
+            .from('trigger_events')
+            .insert(triggerPayload)
+            .select()
+            .single();
+
+          if (error) {
+            console.error(`[Trigger Insert Error]: ${error.message}`);
+            continue;
+          }
+          triggerDoc = inserted;
         } else {
           triggerDoc = {
-            _id: `trigger_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-            ...triggerPayload
+            id: `trigger_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            ...triggerPayload,
+            // Keep camelCase aliases for backward compat with in-memory claim processing
+            disruptionType: primaryDisruptionType,
+            signalsUsed,
+            confirmedAt: triggerPayload.confirmed_at
           };
           mockTriggerEventsStore.unshift(triggerDoc);
         }
 
         createdTriggers.push(triggerDoc);
-        console.log(`[DISRUPTION TRIGGER CREATED]: Zone=${zone.zoneName} | Type=${primaryDisruptionType} | Status=${status} | Signals=${signalsUsed.length}`);
+        console.log(`[DISRUPTION TRIGGER CREATED]: Zone=${zoneName} | Type=${primaryDisruptionType} | Status=${status} | Signals=${signalsUsed.length}`);
 
-        // If TriggerEvent is confirmed, automatically generate zero-manual claims for matching policyholders
+        // If confirmed, automatically generate zero-manual claims for matching policyholders
         if (status === 'confirmed') {
           await claimController.autoCreateClaimsForTrigger(triggerDoc);
         }

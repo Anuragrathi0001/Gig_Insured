@@ -1,11 +1,10 @@
 const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
-const { Worker } = require('../models');
+const supabase = require('../config/supabase');
 const otpService = require('../services/otpService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here';
 
-// In-memory worker fallback store when MongoDB is offline
+// In-memory worker fallback store when Supabase is offline
 const mockWorkerStore = new Map();
 
 /**
@@ -76,48 +75,64 @@ const verifyOtp = async (req, res) => {
       });
     }
 
-    // Check if database is connected or fallback to in-memory store
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let worker = null;
 
-    if (isDbConnected) {
-      worker = await Worker.findOne({ mobile: cleanMobile });
+    if (process.env.SUPABASE_URL) {
+      // Try to find existing worker
+      const { data: existing } = await supabase
+        .from('workers')
+        .select('*')
+        .eq('mobile', cleanMobile)
+        .single();
 
-      if (!worker) {
-        // Create new worker shell if new registration
-        worker = await Worker.create({
-          mobile: cleanMobile,
-          name: '',
-          city: '',
-          zone: '',
-          platform: 'Zomato',
-          workerId: `WORKER-${cleanMobile.slice(-4)}`,
-          avgWeeklyIncome: 4500,
-          upiId: ''
-        });
+      if (existing) {
+        worker = existing;
+      } else {
+        // Create a new worker shell on first OTP verification
+        const { data: created, error } = await supabase
+          .from('workers')
+          .insert({
+            mobile: cleanMobile,
+            name: '',
+            city: '',
+            zone: '',
+            platform: 'Zomato',
+            worker_id: `WORKER-${cleanMobile.slice(-4)}-${Date.now()}`,
+            avg_weekly_income: 4500,
+            upi_id: ''
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('[Auth verifyOtp]: Supabase insert error:', error.message);
+          throw new Error(error.message);
+        }
+        worker = created;
       }
     } else {
-      console.log('[Auth]: MongoDB not connected. Using in-memory worker store.');
+      // In-memory fallback
+      console.log('[Auth]: SUPABASE_URL not set. Using in-memory worker store.');
       worker = mockWorkerStore.get(cleanMobile);
 
       if (!worker) {
         worker = {
-          _id: `worker_${Date.now()}`,
+          id: `worker_${Date.now()}`,
           mobile: cleanMobile,
           name: '',
           city: '',
           zone: '',
           platform: 'Zomato',
-          workerId: `WORKER-${cleanMobile.slice(-4)}`,
-          avgWeeklyIncome: 4500,
-          upiId: '',
+          worker_id: `WORKER-${cleanMobile.slice(-4)}`,
+          avg_weekly_income: 4500,
+          upi_id: '',
           isNew: true
         };
         mockWorkerStore.set(cleanMobile, worker);
       }
     }
 
-    const token = generateToken(worker._id, worker.mobile);
+    const token = generateToken(worker.id, worker.mobile);
 
     return res.status(200).json({
       status: 'success',
@@ -140,11 +155,17 @@ const verifyOtp = async (req, res) => {
  */
 const getMe = async (req, res) => {
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let worker = null;
 
-    if (isDbConnected) {
-      worker = await Worker.findById(req.worker.id).select('-__v');
+    if (process.env.SUPABASE_URL) {
+      const { data, error } = await supabase
+        .from('workers')
+        .select('*')
+        .eq('id', req.worker.id)
+        .single();
+
+      if (error) throw new Error(error.message);
+      worker = data;
     } else {
       worker = mockWorkerStore.get(req.worker.mobile) || req.worker;
     }

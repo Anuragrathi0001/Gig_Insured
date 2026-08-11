@@ -1,5 +1,4 @@
-const mongoose = require('mongoose');
-const { ZoneConfig, TriggerEvent, FraudFlag, Claim, Policy, Worker } = require('../models');
+const supabase = require('../config/supabase');
 const weatherService = require('../services/weatherService');
 const disruptionMonitor = require('../jobs/disruptionMonitor');
 const fraudEngine = require('../services/fraudEngine');
@@ -15,22 +14,20 @@ const { mockPolicyStore } = require('./policyController');
  */
 const getZones = async (req, res) => {
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let zones = [];
 
-    if (isDbConnected) {
-      zones = await ZoneConfig.find({}).lean();
+    if (process.env.SUPABASE_URL) {
+      const { data, error } = await supabase.from('zone_configs').select('*');
+      if (error) throw new Error(error.message);
+      zones = data || [];
     } else {
       zones = zoneData.getActiveZones();
     }
 
     const zonesWithWeather = await Promise.all(
       zones.map(async (z) => {
-        const weather = await weatherService.getZoneWeather(z.zoneName);
-        return {
-          ...z,
-          liveWeather: weather
-        };
+        const weather = await weatherService.getZoneWeather(z.zone_name || z.zoneName);
+        return { ...z, liveWeather: weather };
       })
     );
 
@@ -52,31 +49,31 @@ const createZone = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'zoneName and city are required' });
     }
 
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let newZone;
 
-    if (isDbConnected) {
-      newZone = await ZoneConfig.create({
-        zoneName: zoneName.trim(),
-        city: city.trim(),
-        geoBoundary: geoBoundary || {
-          type: 'Polygon',
-          coordinates: [[[77.6, 12.9], [77.7, 12.9], [77.7, 13.0], [77.6, 13.0], [77.6, 12.9]]]
-        },
-        triggerThresholds: triggerThresholds || { rainMmPerHour: 20, heatTempCelsius: 40, aqiThreshold: 300 },
-        premiumBand: premiumBand || { Basic: 25, Standard: 45, Premium: 75 }
-      });
+    if (process.env.SUPABASE_URL) {
+      const { data, error } = await supabase
+        .from('zone_configs')
+        .insert({
+          zone_name: zoneName.trim(),
+          city: city.trim(),
+          geo_boundary: geoBoundary || { type: 'Polygon', coordinates: [[[77.6, 12.9], [77.7, 12.9], [77.7, 13.0], [77.6, 13.0], [77.6, 12.9]]] },
+          trigger_thresholds: triggerThresholds || { rainMmPerHour: 20, heatTempCelsius: 40, aqiThreshold: 300 },
+          premium_band: premiumBand || { Basic: 25, Standard: 45, Premium: 75 }
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      newZone = data;
     } else {
       newZone = {
-        _id: `zone_${Date.now()}`,
-        zoneName: zoneName.trim(),
+        id: `zone_${Date.now()}`,
+        zone_name: zoneName.trim(),
         city: city.trim(),
-        geoBoundary: geoBoundary || {
-          type: 'Polygon',
-          coordinates: [[[77.6, 12.9], [77.7, 12.9], [77.7, 13.0], [77.6, 13.0], [77.6, 12.9]]]
-        },
-        triggerThresholds: triggerThresholds || { rainMmPerHour: 20, heatTempCelsius: 40, aqiThreshold: 300 },
-        premiumBand: premiumBand || { Basic: 25, Standard: 45, Premium: 75 }
+        geo_boundary: geoBoundary || {},
+        trigger_thresholds: triggerThresholds || { rainMmPerHour: 20, heatTempCelsius: 40, aqiThreshold: 300 },
+        premium_band: premiumBand || { Basic: 25, Standard: 45, Premium: 75 }
       };
       zoneData.addZoneToStore(newZone);
     }
@@ -96,18 +93,22 @@ const updateZone = async (req, res) => {
     const { id } = req.params;
     const { triggerThresholds, premiumBand } = req.body;
 
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let updatedZone = null;
 
-    if (isDbConnected) {
-      updatedZone = await ZoneConfig.findByIdAndUpdate(
-        id,
-        {
-          ...(triggerThresholds && { triggerThresholds }),
-          ...(premiumBand && { premiumBand })
-        },
-        { new: true }
-      );
+    if (process.env.SUPABASE_URL) {
+      const updatePayload = {};
+      if (triggerThresholds) updatePayload.trigger_thresholds = triggerThresholds;
+      if (premiumBand) updatePayload.premium_band = premiumBand;
+
+      const { data, error } = await supabase
+        .from('zone_configs')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      updatedZone = data;
     } else {
       updatedZone = zoneData.updateZoneInStore(id, { triggerThresholds, premiumBand });
     }
@@ -169,13 +170,14 @@ const simulateFraudAttack = async (req, res) => {
  */
 const getAdminOverview = async (req, res) => {
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let claims = [];
     let policies = [];
 
-    if (isDbConnected) {
-      claims = await Claim.find({}).lean();
-      policies = await Policy.find({ status: 'Active' }).lean();
+    if (process.env.SUPABASE_URL) {
+      const { data: claimData } = await supabase.from('claims').select('*');
+      const { data: policyData } = await supabase.from('policies').select('*').eq('status', 'Active');
+      claims = claimData || [];
+      policies = policyData || [];
     } else {
       claims = mockClaimsStore;
       policies = Array.from(mockPolicyStore.values());
@@ -188,9 +190,9 @@ const getAdminOverview = async (req, res) => {
       Premium: policies.filter(p => p.tier === 'Premium').length || 8
     };
 
-    const totalPremiumsCollected = policies.reduce((sum, p) => sum + (p.weeklyPremium || 50), 0) || 2100;
-    const paidClaims = claims.filter(c => c.claimState === 'Paid');
-    const totalPayoutsDisbursed = paidClaims.reduce((sum, c) => sum + (c.payoutAmount || 0), 0);
+    const totalPremiumsCollected = policies.reduce((sum, p) => sum + (p.weekly_premium || p.weeklyPremium || 50), 0) || 2100;
+    const paidClaims = claims.filter(c => (c.claim_state || c.claimState) === 'Paid');
+    const totalPayoutsDisbursed = paidClaims.reduce((sum, c) => sum + (c.payout_amount || c.payoutAmount || 0), 0);
 
     const lossRatio = totalPremiumsCollected > 0
       ? ((totalPayoutsDisbursed / totalPremiumsCollected) * 100).toFixed(1)
@@ -205,10 +207,10 @@ const getAdminOverview = async (req, res) => {
     };
 
     const fraudMetrics = {
-      autoApproved: claims.filter(c => c.claimState === 'Auto-Approved' || c.claimState === 'Paid').length,
-      underReview: claims.filter(c => c.claimState === 'Under-Review').length,
-      blocked: claims.filter(c => c.claimState === 'Blocked').length,
-      appealed: claims.filter(c => c.claimState === 'Appealed').length
+      autoApproved: claims.filter(c => ['Auto-Approved', 'Paid'].includes(c.claim_state || c.claimState)).length,
+      underReview: claims.filter(c => (c.claim_state || c.claimState) === 'Under-Review').length,
+      blocked: claims.filter(c => (c.claim_state || c.claimState) === 'Blocked').length,
+      appealed: claims.filter(c => (c.claim_state || c.claimState) === 'Appealed').length
     };
 
     return res.status(200).json({
@@ -237,11 +239,7 @@ const getAdminOverview = async (req, res) => {
 const getForecast = async (req, res) => {
   try {
     const forecast = await forecastEngine.generateNextWeekForecast();
-    return res.status(200).json({
-      status: 'success',
-      count: forecast.length,
-      forecast
-    });
+    return res.status(200).json({ status: 'success', count: forecast.length, forecast });
   } catch (error) {
     return res.status(500).json({ status: 'error', message: 'Failed to generate predictive forecast' });
   }
@@ -254,11 +252,7 @@ const getForecast = async (req, res) => {
 const getHeatmap = async (req, res) => {
   try {
     const heatmap = await forecastEngine.generateZoneHeatmap();
-    return res.status(200).json({
-      status: 'success',
-      count: heatmap.length,
-      heatmap
-    });
+    return res.status(200).json({ status: 'success', count: heatmap.length, heatmap });
   } catch (error) {
     return res.status(500).json({ status: 'error', message: 'Failed to generate zone heatmap payload' });
   }
@@ -270,55 +264,59 @@ const getHeatmap = async (req, res) => {
  */
 const getFraudQueue = async (req, res) => {
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let queuedClaims = [];
 
-    if (isDbConnected) {
-      queuedClaims = await Claim.find({
-        fraudRiskScore: { $gte: 31 },
-        claimState: { $in: ['Under-Review', 'Blocked', 'Scoring'] }
-      })
-        .populate('workerId')
-        .sort({ fraudRiskScore: -1 })
-        .lean();
+    if (process.env.SUPABASE_URL) {
+      const { data, error } = await supabase
+        .from('claims')
+        .select('*, workers(*)')
+        .gte('fraud_risk_score', 31)
+        .in('claim_state', ['Under-Review', 'Blocked', 'Scoring'])
+        .order('fraud_risk_score', { ascending: false });
+
+      if (error) throw new Error(error.message);
+      queuedClaims = data || [];
     } else {
       queuedClaims = mockClaimsStore.filter(c =>
-        (c.fraudRiskScore || 0) >= 31 || c.claimState === 'Under-Review' || c.claimState === 'Blocked'
+        (c.fraud_risk_score || c.fraudRiskScore || 0) >= 31 ||
+        c.claim_state === 'Under-Review' ||
+        c.claimState === 'Under-Review' ||
+        c.claim_state === 'Blocked' ||
+        c.claimState === 'Blocked'
       );
     }
 
-    const queuedClaimsWithEvidence = queuedClaims.map(c => ({
-      ...c,
-      evidence: {
-        gpsEvidence: {
-          status: c.fraudRiskScore >= 25 ? 'STATIC_FIX_FLAGGED' : 'NORMAL_MOTION',
-          detectedSpeedKmph: c.fraudRiskScore >= 25 ? 0 : 28,
-          staticDurationMins: 45,
-          locationFix: 'Indiranagar Hub Geo-Polygon'
-        },
-        platformEvidence: {
-          status: c.fraudRiskScore >= 30 ? 'ACTIVE_DELIVERIES_DURING_DISRUPTION' : 'IDLE_DURING_DISRUPTION',
-          ordersCompletedInWindow: c.fraudRiskScore >= 30 ? 3 : 0,
-          platformName: 'Zomato / Swiggy Partner API'
-        },
-        deviceEvidence: {
-          fingerprintId: 'DEV-FINGERPRINT-8891',
-          isDuplicateDevice: c.fraudRiskScore >= 20,
-          associatedWorkerAccounts: c.fraudRiskScore >= 20 ? 3 : 1
-        },
-        networkEvidence: {
-          subnetIp: '192.168.1.104',
-          isClusterAttacked: c.fraudRiskScore >= 35,
-          clusterClaimsCount: c.fraudRiskScore >= 35 ? 7 : 1
+    const queuedClaimsWithEvidence = queuedClaims.map(c => {
+      const score = c.fraud_risk_score || c.fraudRiskScore || 0;
+      return {
+        ...c,
+        evidence: {
+          gpsEvidence: {
+            status: score >= 25 ? 'STATIC_FIX_FLAGGED' : 'NORMAL_MOTION',
+            detectedSpeedKmph: score >= 25 ? 0 : 28,
+            staticDurationMins: 45,
+            locationFix: 'Indiranagar Hub Geo-Polygon'
+          },
+          platformEvidence: {
+            status: score >= 30 ? 'ACTIVE_DELIVERIES_DURING_DISRUPTION' : 'IDLE_DURING_DISRUPTION',
+            ordersCompletedInWindow: score >= 30 ? 3 : 0,
+            platformName: 'Zomato / Swiggy Partner API'
+          },
+          deviceEvidence: {
+            fingerprintId: 'DEV-FINGERPRINT-8891',
+            isDuplicateDevice: score >= 20,
+            associatedWorkerAccounts: score >= 20 ? 3 : 1
+          },
+          networkEvidence: {
+            subnetIp: '192.168.1.104',
+            isClusterAttacked: score >= 35,
+            clusterClaimsCount: score >= 35 ? 7 : 1
+          }
         }
-      }
-    }));
-
-    return res.status(200).json({
-      status: 'success',
-      count: queuedClaimsWithEvidence.length,
-      queue: queuedClaimsWithEvidence
+      };
     });
+
+    return res.status(200).json({ status: 'success', count: queuedClaimsWithEvidence.length, queue: queuedClaimsWithEvidence });
   } catch (error) {
     return res.status(500).json({ status: 'error', message: 'Failed to fetch fraud queue' });
   }
@@ -337,13 +335,17 @@ const resolveQueuedClaim = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: "Action must be 'approve' or 'reject'" });
     }
 
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let claim = null;
 
-    if (isDbConnected) {
-      claim = await Claim.findById(id).populate('workerId');
+    if (process.env.SUPABASE_URL) {
+      const { data } = await supabase
+        .from('claims')
+        .select('*, workers(*)')
+        .eq('id', id)
+        .single();
+      claim = data;
     } else {
-      claim = mockClaimsStore.find(c => c._id === id);
+      claim = mockClaimsStore.find(c => c.id === id);
     }
 
     if (!claim) {
@@ -351,51 +353,59 @@ const resolveQueuedClaim = async (req, res) => {
     }
 
     if (action === 'approve') {
-      const upiId = claim.workerId?.upiId || claim.workerUpiId || 'worker@paytm';
+      const upiId = claim.workers?.upi_id || claim.workerUpiId || 'worker@paytm';
       const payoutRes = await razorpayMock.dispatchUpiPayout({
-        amount: claim.payoutAmount,
+        amount: claim.payout_amount || claim.payoutAmount,
         upiId,
-        claimId: claim._id,
-        workerName: claim.workerId?.name || claim.workerName
+        claimId: claim.id,
+        workerName: claim.workers?.name || claim.workerName
       });
 
       const newState = payoutRes.success ? 'Paid' : 'Payout-Failed';
       const transactionRef = payoutRes.transactionRef || null;
 
-      if (isDbConnected) {
-        claim.claimState = newState;
-        claim.transactionRef = transactionRef;
-        claim.reason = `Admin Resolved (Approved): ${reason || 'Evidence Overruled Risk Score'}`;
-        claim.resolvedAt = new Date();
-        await claim.save();
+      if (process.env.SUPABASE_URL) {
+        const { data: updated } = await supabase
+          .from('claims')
+          .update({
+            claim_state: newState,
+            transaction_ref: transactionRef,
+            reason: `Admin Resolved (Approved): ${reason || 'Evidence Overruled Risk Score'}`,
+            resolved_at: new Date().toISOString()
+          })
+          .eq('id', id)
+          .select()
+          .single();
+        claim = updated;
       } else {
-        claim.claimState = newState;
-        claim.transactionRef = transactionRef;
+        claim.claim_state = newState;
+        claim.transaction_ref = transactionRef;
         claim.reason = `Admin Resolved (Approved): ${reason || 'Evidence Overruled Risk Score'}`;
-        claim.resolvedAt = new Date().toISOString();
+        claim.resolved_at = new Date().toISOString();
       }
 
       return res.status(200).json({
         status: 'success',
-        message: `Claim APPROVED by Admin! Razorpay UPI payout of ₹${claim.payoutAmount} dispatched (Ref: ${transactionRef || 'N/A'}).`,
+        message: `Claim APPROVED by Admin! Razorpay UPI payout of ₹${claim.payout_amount || claim.payoutAmount} dispatched (Ref: ${transactionRef || 'N/A'}).`,
         claim
       });
     } else {
       const updatedReason = `Admin Resolved (Rejected): ${reason || 'Fraud Risk Model Confirmed'}`;
-      if (isDbConnected) {
-        claim.claimState = 'Blocked';
-        claim.reason = updatedReason;
-        await claim.save();
+
+      if (process.env.SUPABASE_URL) {
+        const { data: updated } = await supabase
+          .from('claims')
+          .update({ claim_state: 'Blocked', reason: updatedReason })
+          .eq('id', id)
+          .select()
+          .single();
+        claim = updated;
       } else {
-        claim.claimState = 'Blocked';
+        claim.claim_state = 'Blocked';
         claim.reason = updatedReason;
       }
 
-      return res.status(200).json({
-        status: 'success',
-        message: 'Claim REJECTED by Admin. State set to Blocked.',
-        claim
-      });
+      return res.status(200).json({ status: 'success', message: 'Claim REJECTED by Admin. State set to Blocked.', claim });
     }
   } catch (error) {
     return res.status(500).json({ status: 'error', message: 'Failed to resolve queued claim' });
@@ -408,11 +418,16 @@ const resolveQueuedClaim = async (req, res) => {
  */
 const getTriggerEvents = async (req, res) => {
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let triggers = [];
 
-    if (isDbConnected) {
-      triggers = await TriggerEvent.find({}).sort({ timestamp: -1 }).lean();
+    if (process.env.SUPABASE_URL) {
+      const { data, error } = await supabase
+        .from('trigger_events')
+        .select('*')
+        .order('timestamp', { ascending: false });
+
+      if (error) throw new Error(error.message);
+      triggers = data || [];
     } else {
       triggers = disruptionMonitor.mockTriggerEventsStore;
     }
@@ -429,11 +444,16 @@ const getTriggerEvents = async (req, res) => {
  */
 const getFraudFlags = async (req, res) => {
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let flags = [];
 
-    if (isDbConnected) {
-      flags = await FraudFlag.find({}).populate('claimId').sort({ createdAt: -1 }).lean();
+    if (process.env.SUPABASE_URL) {
+      const { data, error } = await supabase
+        .from('fraud_flags')
+        .select('*, claims(*)')
+        .order('created_at', { ascending: false });
+
+      if (error) throw new Error(error.message);
+      flags = data || [];
     } else {
       flags = fraudEngine.mockFraudFlagsStore;
     }
@@ -450,17 +470,19 @@ const getFraudFlags = async (req, res) => {
  */
 const getPendingAppeals = async (req, res) => {
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let appeals = [];
 
-    if (isDbConnected) {
-      appeals = await Claim.find({ claimState: 'Appealed' })
-        .populate('workerId')
-        .populate('triggerEventId')
-        .sort({ createdAt: -1 })
-        .lean();
+    if (process.env.SUPABASE_URL) {
+      const { data, error } = await supabase
+        .from('claims')
+        .select('*, workers(*), trigger_events(*)')
+        .eq('claim_state', 'Appealed')
+        .order('created_at', { ascending: false });
+
+      if (error) throw new Error(error.message);
+      appeals = data || [];
     } else {
-      appeals = mockClaimsStore.filter(c => c.claimState === 'Appealed');
+      appeals = mockClaimsStore.filter(c => (c.claim_state || c.claimState) === 'Appealed');
     }
 
     return res.status(200).json({ status: 'success', count: appeals.length, appeals });
@@ -482,13 +504,17 @@ const reviewClaimAppeal = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: "Action must be 'approve' or 'reject'" });
     }
 
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let claim = null;
 
-    if (isDbConnected) {
-      claim = await Claim.findById(id).populate('workerId');
+    if (process.env.SUPABASE_URL) {
+      const { data } = await supabase
+        .from('claims')
+        .select('*, workers(*)')
+        .eq('id', id)
+        .single();
+      claim = data;
     } else {
-      claim = mockClaimsStore.find(c => c._id === id);
+      claim = mockClaimsStore.find(c => c.id === id);
     }
 
     if (!claim) {
@@ -496,51 +522,59 @@ const reviewClaimAppeal = async (req, res) => {
     }
 
     if (action === 'approve') {
-      const upiId = claim.workerId?.upiId || claim.workerUpiId || 'worker@paytm';
+      const upiId = claim.workers?.upi_id || claim.workerUpiId || 'worker@paytm';
       const payoutRes = await razorpayMock.dispatchUpiPayout({
-        amount: claim.payoutAmount,
+        amount: claim.payout_amount || claim.payoutAmount,
         upiId,
-        claimId: claim._id,
-        workerName: claim.workerId?.name || claim.workerName
+        claimId: claim.id,
+        workerName: claim.workers?.name || claim.workerName
       });
 
       const newState = payoutRes.success ? 'Paid' : 'Payout-Failed';
       const transactionRef = payoutRes.transactionRef || null;
 
-      if (isDbConnected) {
-        claim.claimState = newState;
-        claim.transactionRef = transactionRef;
-        claim.reason = `Admin Approved Appeal: ${adminNote || 'Valid Disruption Claim Confirmed'}`;
-        claim.resolvedAt = new Date();
-        await claim.save();
+      if (process.env.SUPABASE_URL) {
+        const { data: updated } = await supabase
+          .from('claims')
+          .update({
+            claim_state: newState,
+            transaction_ref: transactionRef,
+            reason: `Admin Approved Appeal: ${adminNote || 'Valid Disruption Claim Confirmed'}`,
+            resolved_at: new Date().toISOString()
+          })
+          .eq('id', id)
+          .select()
+          .single();
+        claim = updated;
       } else {
-        claim.claimState = newState;
-        claim.transactionRef = transactionRef;
+        claim.claim_state = newState;
+        claim.transaction_ref = transactionRef;
         claim.reason = `Admin Approved Appeal: ${adminNote || 'Valid Disruption Claim Confirmed'}`;
-        claim.resolvedAt = new Date().toISOString();
+        claim.resolved_at = new Date().toISOString();
       }
 
       return res.status(200).json({
         status: 'success',
-        message: `Appeal APPROVED! Razorpay UPI payout of ₹${claim.payoutAmount} dispatched (Ref: ${transactionRef || 'N/A'}).`,
+        message: `Appeal APPROVED! Razorpay UPI payout of ₹${claim.payout_amount || claim.payoutAmount} dispatched (Ref: ${transactionRef || 'N/A'}).`,
         claim
       });
     } else {
       const updatedReason = `Admin Rejected Appeal: ${adminNote || 'Fraud Risk Model Upheld'}`;
-      if (isDbConnected) {
-        claim.claimState = 'Blocked';
-        claim.reason = updatedReason;
-        await claim.save();
+
+      if (process.env.SUPABASE_URL) {
+        const { data: updated } = await supabase
+          .from('claims')
+          .update({ claim_state: 'Blocked', reason: updatedReason })
+          .eq('id', id)
+          .select()
+          .single();
+        claim = updated;
       } else {
-        claim.claimState = 'Blocked';
+        claim.claim_state = 'Blocked';
         claim.reason = updatedReason;
       }
 
-      return res.status(200).json({
-        status: 'success',
-        message: 'Appeal REJECTED. Claim remains Blocked.',
-        claim
-      });
+      return res.status(200).json({ status: 'success', message: 'Appeal REJECTED. Claim remains Blocked.', claim });
     }
   } catch (error) {
     return res.status(500).json({ status: 'error', message: 'Failed to review claim appeal' });

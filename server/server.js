@@ -1,19 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const connectDB = require('./config/db.js');
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-// Connect to Database
-if (process.env.MONGO_URI) {
-  connectDB();
-} else {
-  console.log('[Server]: MONGO_URI not provided. Skipping DB connection for initial health check mode.');
-}
 
 // Middleware
 app.use(cors());
@@ -26,7 +18,8 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     message: 'Gig Insured API Server is running',
     timestamp: new Date().toISOString(),
-    service: 'gig-insured-server'
+    service: 'gig-insured-server',
+    database: process.env.SUPABASE_URL ? 'supabase' : 'in-memory'
   });
 });
 
@@ -56,4 +49,9 @@ disruptionMonitor.initCronJob();
 
 app.listen(PORT, () => {
   console.log(`[Server] Gig Insured backend listening on port ${PORT}`);
+  if (process.env.SUPABASE_URL) {
+    console.log('[Server] Connected to Supabase (PostgreSQL)');
+  } else {
+    console.log('[Server] SUPABASE_URL not set — running in in-memory fallback mode');
+  }
 });

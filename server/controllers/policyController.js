@@ -1,5 +1,4 @@
-const mongoose = require('mongoose');
-const { Policy, Worker, ZoneConfig } = require('../models');
+const supabase = require('../config/supabase');
 const premiumEngine = require('../services/premiumEngine');
 
 // In-memory mock policy store for offline DB fallback
@@ -10,15 +9,13 @@ const mockPolicyStore = new Map(); // workerId -> Policy object
  */
 const getCurrentWeekBounds = () => {
   const now = new Date();
-  const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday
-  
-  // Calculate Monday of current week
+  const dayOfWeek = now.getDay(); // 0 = Sunday
+
   const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const monday = new Date(now);
   monday.setDate(now.getDate() + diffToMonday);
   monday.setHours(0, 0, 0, 0);
 
-  // Calculate Sunday of current week
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   sunday.setHours(23, 59, 59, 999);
@@ -34,12 +31,16 @@ const getCurrentWeekBounds = () => {
 const getPremiumQuotes = async (req, res) => {
   try {
     const worker = req.worker;
-    const quotes = premiumEngine.calculateQuotes(worker.riskProfile || {});
+    const riskProfile = {
+      zoneRiskScore: worker.zone_risk_score || worker.riskProfile?.zoneRiskScore || 50,
+      weatherExposureScore: worker.weather_exposure_score || worker.riskProfile?.weatherExposureScore || 50
+    };
+    const quotes = premiumEngine.calculateQuotes(riskProfile);
 
     return res.status(200).json({
       status: 'success',
       workerZone: worker.zone,
-      riskProfile: worker.riskProfile,
+      riskProfile,
       quotes
     });
   } catch (error) {
@@ -67,7 +68,7 @@ const mockUpiPayment = async (req, res) => {
       transactionId,
       amount: Number(amount) || 45,
       tier: tier || 'Standard',
-      upiId: upiId || req.worker.upiId,
+      upiId: upiId || req.worker.upi_id || req.worker.upiId,
       paidAt: new Date().toISOString()
     });
   } catch (error) {
@@ -94,49 +95,59 @@ const activatePolicy = async (req, res) => {
       });
     }
 
-    const quotes = premiumEngine.calculateQuotes(req.worker.riskProfile || {});
+    const riskProfile = {
+      zoneRiskScore: req.worker.zone_risk_score || 50,
+      weatherExposureScore: req.worker.weather_exposure_score || 50
+    };
+    const quotes = premiumEngine.calculateQuotes(riskProfile);
     const chosenQuote = quotes.find(q => q.tier === tier);
 
     const { coveragePeriodStart, coveragePeriodEnd } = getCurrentWeekBounds();
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
 
     let policy;
 
-    if (isDbConnected) {
-      // Deactivate any existing active policy for the current worker first
-      await Policy.updateMany(
-        { workerId: req.worker._id, status: 'Active' },
-        { status: 'Expired' }
-      );
+    if (process.env.SUPABASE_URL) {
+      // Expire any existing active policy for this worker
+      await supabase
+        .from('policies')
+        .update({ status: 'Expired' })
+        .eq('worker_id', req.worker.id)
+        .eq('status', 'Active');
 
-      policy = await Policy.create({
-        workerId: req.worker._id,
-        tier: chosenQuote.tier,
-        weeklyPremium: chosenQuote.weeklyPremium,
-        weeklyBenefitCap: chosenQuote.weeklyBenefitCap,
-        coveragePeriodStart,
-        coveragePeriodEnd,
-        status: 'Active',
-        autoRenew: Boolean(autoRenew ?? true)
-      });
+      const { data, error } = await supabase
+        .from('policies')
+        .insert({
+          worker_id: req.worker.id,
+          tier: chosenQuote.tier,
+          weekly_premium: chosenQuote.weeklyPremium,
+          weekly_benefit_cap: chosenQuote.weeklyBenefitCap,
+          coverage_period_start: coveragePeriodStart.toISOString(),
+          coverage_period_end: coveragePeriodEnd.toISOString(),
+          status: 'Active',
+          auto_renew: Boolean(autoRenew ?? true)
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      policy = data;
     } else {
-      // Offline DB Mock Fallback
       console.log('[Policy Controller]: Offline mode. Storing policy in-memory.');
       policy = {
-        _id: `mock_policy_${Date.now()}`,
-        workerId: req.worker._id || req.worker.workerId,
+        id: `mock_policy_${Date.now()}`,
+        worker_id: req.worker.id || req.worker.worker_id,
         tier: chosenQuote.tier,
-        weeklyPremium: chosenQuote.weeklyPremium,
-        weeklyBenefitCap: chosenQuote.weeklyBenefitCap,
-        hourlyDisruptionRate: chosenQuote.hourlyDisruptionRate,
-        coveragePeriodStart,
-        coveragePeriodEnd,
+        weekly_premium: chosenQuote.weeklyPremium,
+        weekly_benefit_cap: chosenQuote.weeklyBenefitCap,
+        hourly_disruption_rate: chosenQuote.hourlyDisruptionRate,
+        coverage_period_start: coveragePeriodStart.toISOString(),
+        coverage_period_end: coveragePeriodEnd.toISOString(),
         status: 'Active',
-        autoRenew: Boolean(autoRenew ?? true),
-        transactionId: transactionId || `TXN-UPI-${Date.now()}`,
-        createdAt: new Date()
+        auto_renew: Boolean(autoRenew ?? true),
+        transaction_id: transactionId || `TXN-UPI-${Date.now()}`,
+        created_at: new Date().toISOString()
       };
-      mockPolicyStore.set(req.worker._id?.toString() || req.worker.mobile, policy);
+      mockPolicyStore.set(req.worker.id?.toString() || req.worker.mobile, policy);
     }
 
     return res.status(200).json({
@@ -160,16 +171,20 @@ const activatePolicy = async (req, res) => {
  */
 const getActivePolicy = async (req, res) => {
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let policy = null;
 
-    if (isDbConnected) {
-      policy = await Policy.findOne({
-        workerId: req.worker._id,
-        status: 'Active'
-      }).sort({ createdAt: -1 });
+    if (process.env.SUPABASE_URL) {
+      const { data } = await supabase
+        .from('policies')
+        .select('*')
+        .eq('worker_id', req.worker.id)
+        .eq('status', 'Active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      policy = data || null;
     } else {
-      policy = mockPolicyStore.get(req.worker._id?.toString() || req.worker.mobile) || null;
+      policy = mockPolicyStore.get(req.worker.id?.toString() || req.worker.mobile) || null;
     }
 
     return res.status(200).json({

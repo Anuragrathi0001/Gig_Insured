@@ -1,5 +1,4 @@
-const mongoose = require('mongoose');
-const { FraudFlag } = require('../models');
+const supabase = require('../config/supabase');
 
 // In-memory mock fraud flag store for offline DB fallback
 const mockFraudFlagsStore = [];
@@ -24,7 +23,7 @@ const evaluateClaimFraud = async (claim, worker = {}, triggerEvent = {}) => {
   const isCoordinatedRing = activeFraudScenario === 'coordinated_ring' || activeFraudScenario === 'FRAUD_ATTACK';
   const isSuspiciousIp = activeFraudScenario === 'suspicious_ip';
 
-  // 1. GPS Signal Check (location static or movement speed > 120km/h)
+  // 1. GPS Signal Check
   if (isGpsSpoofed) {
     score += 25;
     triggeredSignals.push({
@@ -38,7 +37,7 @@ const evaluateClaimFraud = async (claim, worker = {}, triggerEvent = {}) => {
     });
   }
 
-  // 2. Behavioral Signal Check (completing orders in same zone during severe weather)
+  // 2. Behavioral Signal Check
   if (isBehavioralFake) {
     score += 30;
     triggeredSignals.push({
@@ -51,7 +50,7 @@ const evaluateClaimFraud = async (claim, worker = {}, triggerEvent = {}) => {
     });
   }
 
-  // 3. Device/Network Signal Check (duplicate device ID / IP subnet cluster)
+  // 3. Device/Network Signal Check
   if (isSuspiciousIp) {
     score += 20;
     triggeredSignals.push({
@@ -64,7 +63,7 @@ const evaluateClaimFraud = async (claim, worker = {}, triggerEvent = {}) => {
     });
   }
 
-  // 4. Graph Signal Check (coordinated ring >5 workers filing within 10m window)
+  // 4. Graph Signal Check
   if (isCoordinatedRing) {
     score += 35;
     triggeredSignals.push({
@@ -78,20 +77,19 @@ const evaluateClaimFraud = async (claim, worker = {}, triggerEvent = {}) => {
     });
   }
 
-  // Baseline random noise (0 - 10) for normal claims
+  // Baseline random noise (0-10) for normal claims
   if (score === 0) {
     score = Math.floor(Math.random() * 10);
   }
 
-  // Genuine-User Grace Threshold:
-  // Workers with <2 prior fraud flags and verified KYC / >6 weeks tenure get benefit of doubt if score is 31-50
+  // Grace Threshold: trusted workers with low prior flags get benefit of doubt (score 31-50)
   const priorFlagsCount = worker.priorFraudFlags || 0;
-  const isTrustedWorker = priorFlagsCount < 2 && (worker.kycStatus === 'verified' || (worker.tenureWeeks || 8) > 6);
+  const isTrustedWorker = priorFlagsCount < 2 && (worker.kyc_status === 'verified' || worker.kycStatus === 'verified' || (worker.tenureWeeks || 8) > 6);
   let graceThresholdApplied = false;
 
   if (score >= 31 && score <= 50 && isTrustedWorker) {
     graceThresholdApplied = true;
-    score = 25; // Reduce score to Auto-Approved tier
+    score = 25;
     console.log(`[FraudEngine GRACE]: Trusted worker (${worker.name || worker.mobile}) score reduced from 31-50 range down to 25 (Auto-Approved).`);
   }
 
@@ -106,32 +104,49 @@ const evaluateClaimFraud = async (claim, worker = {}, triggerEvent = {}) => {
   }
 
   // Save FraudFlag documents for triggered signals
-  const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
   const createdFlags = [];
+  const claimId = claim.id || claim._id;
 
   for (const sig of triggeredSignals) {
     const flagPayload = {
-      claimId: claim._id || claim.id,
-      signalType: sig.signalType,
+      claim_id: claimId,
+      signal_type: sig.signalType,
       details: sig.details,
       severity: sig.severity
     };
 
-    if (isDbConnected) {
-      const flagDoc = await FraudFlag.create(flagPayload);
-      createdFlags.push(flagDoc);
+    if (process.env.SUPABASE_URL && claimId && !String(claimId).startsWith('claim_')) {
+      // Only persist to DB if claimId is a valid UUID (not a mock ID)
+      const { data: flagDoc, error } = await supabase
+        .from('fraud_flags')
+        .insert(flagPayload)
+        .select()
+        .single();
+
+      if (!error && flagDoc) {
+        createdFlags.push(flagDoc);
+      } else {
+        // Fall through to in-memory store if insert fails (e.g., during pre-insert evaluation)
+        const mockFlag = {
+          id: `flag_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          ...flagPayload,
+          created_at: new Date().toISOString()
+        };
+        mockFraudFlagsStore.unshift(mockFlag);
+        createdFlags.push(mockFlag);
+      }
     } else {
       const mockFlag = {
-        _id: `flag_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        id: `flag_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
         ...flagPayload,
-        createdAt: new Date().toISOString()
+        created_at: new Date().toISOString()
       };
       mockFraudFlagsStore.unshift(mockFlag);
       createdFlags.push(mockFlag);
     }
   }
 
-  console.log(`[FraudEngine EVALUATION]: Claim=${claim._id || claim.id} | Score=${score} | Decision=${claimState} | Flags=${createdFlags.length} | GraceApplied=${graceThresholdApplied}`);
+  console.log(`[FraudEngine EVALUATION]: Claim=${claimId} | Score=${score} | Decision=${claimState} | Flags=${createdFlags.length} | GraceApplied=${graceThresholdApplied}`);
 
   return {
     fraudRiskScore: score,

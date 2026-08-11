@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
-const { Worker } = require('../models');
+const supabase = require('../config/supabase');
 const { mockWorkerStore } = require('../controllers/authController');
 
 const protect = async (req, res, next) => {
@@ -16,26 +15,47 @@ const protect = async (req, res, next) => {
       const secret = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here';
       const decoded = jwt.verify(token, secret);
 
-      const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
+      // Try Supabase first, fall back to in-memory store
+      if (process.env.SUPABASE_URL) {
+        const { data: worker, error } = await supabase
+          .from('workers')
+          .select('*')
+          .eq('id', decoded.id)
+          .single();
 
-      if (isDbConnected) {
-        req.worker = await Worker.findById(decoded.id).select('-__v');
-      } else {
-        // Fallback for offline DB mode
-        if (decoded.mobile && mockWorkerStore.has(decoded.mobile)) {
-          req.worker = mockWorkerStore.get(decoded.mobile);
-        } else {
-          req.worker = {
-            _id: decoded.id,
+        if (error || !worker) {
+          // Fallback to in-memory store when Supabase unreachable
+          req.worker = mockWorkerStore.get(decoded.mobile) || {
+            id: decoded.id,
             mobile: decoded.mobile,
             name: 'Delivery Partner',
             platform: 'Zomato',
             city: 'Bengaluru',
             zone: 'Indiranagar',
-            workerId: `WRK-${decoded.mobile?.slice(-4) || '1234'}`,
-            avgWeeklyIncome: 4500,
-            kycStatus: 'verified',
-            upiId: `${decoded.mobile || 'worker'}@paytm`
+            worker_id: `WRK-${decoded.mobile?.slice(-4) || '1234'}`,
+            avg_weekly_income: 4500,
+            kyc_status: 'verified',
+            upi_id: `${decoded.mobile || 'worker'}@paytm`
+          };
+        } else {
+          req.worker = worker;
+        }
+      } else {
+        // No Supabase configured — use in-memory store
+        if (decoded.mobile && mockWorkerStore.has(decoded.mobile)) {
+          req.worker = mockWorkerStore.get(decoded.mobile);
+        } else {
+          req.worker = {
+            id: decoded.id,
+            mobile: decoded.mobile,
+            name: 'Delivery Partner',
+            platform: 'Zomato',
+            city: 'Bengaluru',
+            zone: 'Indiranagar',
+            worker_id: `WRK-${decoded.mobile?.slice(-4) || '1234'}`,
+            avg_weekly_income: 4500,
+            kyc_status: 'verified',
+            upi_id: `${decoded.mobile || 'worker'}@paytm`
           };
         }
       }

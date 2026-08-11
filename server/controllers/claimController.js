@@ -1,5 +1,4 @@
-const mongoose = require('mongoose');
-const { Claim, Policy, Worker, FraudFlag } = require('../models');
+const supabase = require('../config/supabase');
 const payoutEngine = require('../services/payoutEngine');
 const fraudEngine = require('../services/fraudEngine');
 const razorpayMock = require('../integrations/razorpayMock');
@@ -38,72 +37,69 @@ const getDisruptionHoursLost = (disruptionType) => {
  * Calculate worker's total payouts disbursed in current week
  */
 const getWorkerWeeklyPayoutsTotal = async (workerId) => {
-  const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
-
-  if (isDbConnected) {
+  if (process.env.SUPABASE_URL) {
     const startOfWeek = new Date();
     const day = startOfWeek.getDay();
     const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
     startOfWeek.setDate(diff);
     startOfWeek.setHours(0, 0, 0, 0);
 
-    const result = await Claim.aggregate([
-      {
-        $match: {
-          workerId: new mongoose.Types.ObjectId(workerId),
-          claimState: 'Paid',
-          createdAt: { $gte: startOfWeek }
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: '$payoutAmount' }
-        }
-      }
-    ]);
+    const { data } = await supabase
+      .from('claims')
+      .select('payout_amount')
+      .eq('worker_id', workerId)
+      .eq('claim_state', 'Paid')
+      .gte('created_at', startOfWeek.toISOString());
 
-    return result[0]?.total || 0;
+    return (data || []).reduce((sum, c) => sum + (c.payout_amount || 0), 0);
   } else {
-    const paidClaims = mockClaimsStore.filter(c => (c.workerId === workerId || c.workerMobile === workerId) && c.claimState === 'Paid');
-    return paidClaims.reduce((sum, c) => sum + (c.payoutAmount || 0), 0);
+    const paidClaims = mockClaimsStore.filter(
+      c => (c.worker_id === workerId || c.workerMobile === workerId) && c.claim_state === 'Paid'
+    );
+    return paidClaims.reduce((sum, c) => sum + (c.payout_amount || 0), 0);
   }
 };
 
 /**
- * Automatically create zero-manual claims, run Multi-Signal Fraud Scoring, enforce Weekly Cap, and execute Razorpay Payouts
+ * Automatically create zero-manual claims, run Multi-Signal Fraud Scoring,
+ * enforce Weekly Cap, and execute Razorpay Payouts
  */
 const autoCreateClaimsForTrigger = async (triggerEvent) => {
   if (!triggerEvent || !triggerEvent.zone) return [];
 
-  console.log(`\n[Claim Automation]: Processing confirmed TriggerEvent for zone: ${triggerEvent.zone} (Type: ${triggerEvent.disruptionType})...`);
+  console.log(`\n[Claim Automation]: Processing confirmed TriggerEvent for zone: ${triggerEvent.zone} (Type: ${triggerEvent.disruption_type || triggerEvent.disruptionType})...`);
 
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
-    const hoursLost = getDisruptionHoursLost(triggerEvent.disruptionType);
+    const hoursLost = getDisruptionHoursLost(triggerEvent.disruption_type || triggerEvent.disruptionType);
     const createdClaims = [];
 
-    if (isDbConnected) {
-      const activePolicies = await Policy.find({ status: 'Active' })
-        .populate('workerId')
-        .lean();
+    if (process.env.SUPABASE_URL) {
+      // Fetch all active policies with their related workers
+      const { data: activePolicies } = await supabase
+        .from('policies')
+        .select('*, workers(*)')
+        .eq('status', 'Active');
 
-      const matchingPolicies = activePolicies.filter(p => p.workerId && p.workerId.zone === triggerEvent.zone);
+      const matchingPolicies = (activePolicies || []).filter(
+        p => p.workers && p.workers.zone === triggerEvent.zone
+      );
 
       for (const policy of matchingPolicies) {
-        const worker = policy.workerId;
+        const worker = policy.workers;
 
-        // Duplicate prevention check
-        const existingClaim = await Claim.findOne({
-          workerId: worker._id,
-          triggerEventId: triggerEvent._id
-        });
+        // Duplicate prevention
+        const { data: existingClaim } = await supabase
+          .from('claims')
+          .select('id')
+          .eq('worker_id', worker.id)
+          .eq('trigger_event_id', triggerEvent.id)
+          .single();
 
         if (existingClaim) continue;
 
-        // Enforce Weekly Payout Cap
-        const existingPaidTotal = await getWorkerWeeklyPayoutsTotal(worker._id);
-        const weeklyCap = policy.weeklyBenefitCap || 3000;
+        // Weekly Cap enforcement
+        const existingPaidTotal = await getWorkerWeeklyPayoutsTotal(worker.id);
+        const weeklyCap = policy.weekly_benefit_cap || 3000;
         const remainingCap = Math.max(0, weeklyCap - existingPaidTotal);
 
         if (remainingCap <= 0) {
@@ -113,34 +109,32 @@ const autoCreateClaimsForTrigger = async (triggerEvent) => {
 
         const calculatedPayout = payoutEngine.calculatePayout({
           hoursLost,
-          avgWeeklyIncome: worker.avgWeeklyIncome,
+          avgWeeklyIncome: worker.avg_weekly_income,
           weeklyBenefitCap: remainingCap
         });
 
         const rawClaim = {
-          _id: new mongoose.Types.ObjectId(),
-          workerId: worker._id,
-          policyId: policy._id,
-          triggerEventId: triggerEvent._id,
-          hoursLost,
-          payoutAmount: calculatedPayout.payoutAmount,
-          claimState: 'Detected',
-          reason: `Automated Parametric Trigger (${triggerEvent.disruptionType.toUpperCase()} in ${triggerEvent.zone})`
+          id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+          worker_id: worker.id,
+          policy_id: policy.id,
+          trigger_event_id: triggerEvent.id,
+          hours_lost: hoursLost,
+          payout_amount: calculatedPayout.payoutAmount,
+          claim_state: 'Detected',
+          reason: `Automated Parametric Trigger (${(triggerEvent.disruption_type || triggerEvent.disruptionType || '').toUpperCase()} in ${triggerEvent.zone})`
         };
 
-        // Evaluate Multi-Signal Fraud Scoring
         const fraudResult = await fraudEngine.evaluateClaimFraud(rawClaim, worker, triggerEvent);
 
         const requiresOtp = calculatedPayout.payoutAmount > 1000 && fraudResult.claimState === 'Auto-Approved';
         let initialClaimState = requiresOtp ? 'Auto-Approved' : fraudResult.claimState;
         let transactionRef = null;
 
-        // If Auto-Approved and no OTP required, execute Razorpay Instant UPI Payout
         if (initialClaimState === 'Auto-Approved' && !requiresOtp) {
           const payoutRes = await razorpayMock.dispatchUpiPayout({
             amount: calculatedPayout.payoutAmount,
-            upiId: worker.upiId || 'worker@paytm',
-            claimId: rawClaim._id,
+            upiId: worker.upi_id || 'worker@paytm',
+            claimId: rawClaim.id,
             workerName: worker.name
           });
 
@@ -152,91 +146,93 @@ const autoCreateClaimsForTrigger = async (triggerEvent) => {
           }
         }
 
-        const claim = await Claim.create({
-          _id: rawClaim._id,
-          workerId: worker._id,
-          policyId: policy._id,
-          triggerEventId: triggerEvent._id,
-          hoursLost,
-          payoutAmount: calculatedPayout.payoutAmount,
-          fraudRiskScore: fraudResult.fraudRiskScore,
-          claimState: initialClaimState,
-          otpVerificationRequired: requiresOtp,
-          transactionRef,
-          reason: rawClaim.reason
-        });
+        const { data: claim, error } = await supabase
+          .from('claims')
+          .insert({
+            worker_id: worker.id,
+            policy_id: policy.id,
+            trigger_event_id: triggerEvent.id,
+            hours_lost: hoursLost,
+            payout_amount: calculatedPayout.payoutAmount,
+            fraud_risk_score: fraudResult.fraudRiskScore,
+            claim_state: initialClaimState,
+            otp_verification_required: requiresOtp,
+            transaction_ref: transactionRef,
+            reason: rawClaim.reason
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error(`[Claim Insert Error]: ${error.message}`);
+          continue;
+        }
 
         createdClaims.push(claim);
 
-        // SMS & In-App Push Notification Alert
         console.log(`==================================================`);
         console.log(`[SMS & Push Gateway Mock] Sent to +91-${worker.mobile} (${worker.name}):`);
-        console.log(`"Disruption confirmed in ${triggerEvent.zone}. ₹${calculatedPayout.payoutAmount} payout ${initialClaimState === 'Paid' ? `initiated to your UPI (${worker.upiId || 'worker@paytm'}). Ref: ${transactionRef}` : `decision: ${initialClaimState}`}"`);
+        console.log(`"Disruption confirmed in ${triggerEvent.zone}. ₹${calculatedPayout.payoutAmount} payout ${initialClaimState === 'Paid' ? `initiated to your UPI (${worker.upi_id || 'worker@paytm'}). Ref: ${transactionRef}` : `decision: ${initialClaimState}`}"`);
         console.log(`==================================================\n`);
       }
     } else {
-      // Offline DB Mock Fallback
+      // Offline Mock Fallback
       const mockPolicies = Array.from(mockPolicyStore.values());
       const mockWorkers = Array.from(mockWorkerStore.values());
 
       if (mockPolicies.length === 0 && mockWorkers.length > 0) {
         const sampleWorker = mockWorkers[0];
-        const samplePolicy = {
-          _id: `mock_policy_${Date.now()}`,
-          workerId: sampleWorker._id,
+        mockPolicies.push({
+          id: `mock_policy_${Date.now()}`,
+          worker_id: sampleWorker.id,
           tier: 'Standard',
-          weeklyPremium: 50,
-          weeklyBenefitCap: 3000,
-          hourlyDisruptionRate: 250,
+          weekly_premium: 50,
+          weekly_benefit_cap: 3000,
           status: 'Active'
-        };
-        mockPolicies.push(samplePolicy);
+        });
       }
 
       for (const policy of mockPolicies) {
-        let worker = mockWorkers.find(w => w._id === policy.workerId || w.mobile === policy.workerId);
+        let worker = mockWorkers.find(w => w.id === policy.worker_id || w.mobile === policy.worker_id);
         if (!worker && mockWorkers.length > 0) worker = mockWorkers[0];
         if (!worker) {
           worker = {
-            _id: 'mock_worker_demo',
+            id: 'mock_worker_demo',
             name: 'Vikram Delivery Partner',
             mobile: '9876543210',
             zone: triggerEvent.zone,
-            avgWeeklyIncome: 5500,
-            upiId: 'vikram@upi',
-            kycStatus: 'verified'
+            avg_weekly_income: 5500,
+            upi_id: 'vikram@upi',
+            kyc_status: 'verified'
           };
         }
 
-        const existingPaidTotal = await getWorkerWeeklyPayoutsTotal(worker._id);
-        const weeklyCap = policy.weeklyBenefitCap || 3000;
+        const existingPaidTotal = await getWorkerWeeklyPayoutsTotal(worker.id);
+        const weeklyCap = policy.weekly_benefit_cap || 3000;
         const remainingCap = Math.max(0, weeklyCap - existingPaidTotal);
 
-        if (remainingCap <= 0) {
-          console.log(`[Claim Automation CAP EXCEEDED]: Worker ${worker.name} reached weekly benefit cap (₹${weeklyCap}). Skipping payout.`);
-          continue;
-        }
+        if (remainingCap <= 0) continue;
 
         const calculatedPayout = payoutEngine.calculatePayout({
           hoursLost,
-          avgWeeklyIncome: worker.avgWeeklyIncome || 5500,
+          avgWeeklyIncome: worker.avg_weekly_income || 5500,
           weeklyBenefitCap: remainingCap
         });
 
         const rawMockClaim = {
-          _id: `claim_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-          workerId: worker._id,
+          id: `claim_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          worker_id: worker.id,
           workerName: worker.name,
           workerMobile: worker.mobile,
-          workerUpiId: worker.upiId || 'vikram@upi',
-          policyId: policy._id,
-          triggerEventId: triggerEvent._id,
-          disruptionType: triggerEvent.disruptionType,
+          workerUpiId: worker.upi_id || 'vikram@upi',
+          policy_id: policy.id,
+          trigger_event_id: triggerEvent.id,
+          disruptionType: triggerEvent.disruption_type || triggerEvent.disruptionType,
           zone: triggerEvent.zone,
-          hoursLost,
-          payoutAmount: calculatedPayout.payoutAmount,
-          reason: `Automated Parametric Trigger (${triggerEvent.disruptionType.toUpperCase()} in ${triggerEvent.zone})`,
-          createdAt: new Date().toISOString()
+          hours_lost: hoursLost,
+          payout_amount: calculatedPayout.payoutAmount,
+          reason: `Automated Parametric Trigger (${(triggerEvent.disruption_type || triggerEvent.disruptionType || '').toUpperCase()} in ${triggerEvent.zone})`,
+          created_at: new Date().toISOString()
         };
 
         const fraudResult = await fraudEngine.evaluateClaimFraud(rawMockClaim, worker, triggerEvent);
@@ -248,8 +244,8 @@ const autoCreateClaimsForTrigger = async (triggerEvent) => {
         if (initialClaimState === 'Auto-Approved' && !requiresOtp) {
           const payoutRes = await razorpayMock.dispatchUpiPayout({
             amount: calculatedPayout.payoutAmount,
-            upiId: worker.upiId || 'vikram@upi',
-            claimId: rawMockClaim._id,
+            upiId: worker.upi_id || 'vikram@upi',
+            claimId: rawMockClaim.id,
             workerName: worker.name
           });
 
@@ -263,10 +259,10 @@ const autoCreateClaimsForTrigger = async (triggerEvent) => {
 
         const mockClaim = {
           ...rawMockClaim,
-          fraudRiskScore: fraudResult.fraudRiskScore,
-          claimState: initialClaimState,
-          otpVerificationRequired: requiresOtp,
-          transactionRef,
+          fraud_risk_score: fraudResult.fraudRiskScore,
+          claim_state: initialClaimState,
+          otp_verification_required: requiresOtp,
+          transaction_ref: transactionRef,
           graceThresholdApplied: fraudResult.graceThresholdApplied
         };
 
@@ -275,7 +271,7 @@ const autoCreateClaimsForTrigger = async (triggerEvent) => {
 
         console.log(`==================================================`);
         console.log(`[SMS & Push Gateway Mock] Sent to +91-${worker.mobile} (${worker.name}):`);
-        console.log(`"Disruption confirmed in ${triggerEvent.zone}. ₹${calculatedPayout.payoutAmount} payout ${initialClaimState === 'Paid' ? `initiated to your UPI (${worker.upiId || 'vikram@upi'}). Ref: ${transactionRef}` : `decision: ${initialClaimState}`}"`);
+        console.log(`"Disruption confirmed in ${triggerEvent.zone}. ₹${calculatedPayout.payoutAmount} payout ${initialClaimState === 'Paid' ? `initiated to your UPI. Ref: ${transactionRef}` : `decision: ${initialClaimState}`}"`);
         console.log(`==================================================\n`);
       }
     }
@@ -295,19 +291,22 @@ const autoCreateClaimsForTrigger = async (triggerEvent) => {
  */
 const getMyClaims = async (req, res) => {
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let claims = [];
 
-    if (isDbConnected) {
-      claims = await Claim.find({ workerId: req.worker._id })
-        .populate('triggerEventId')
-        .sort({ createdAt: -1 })
-        .lean();
+    if (process.env.SUPABASE_URL) {
+      const { data, error } = await supabase
+        .from('claims')
+        .select('*, trigger_events(*)')
+        .eq('worker_id', req.worker.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw new Error(error.message);
+      claims = data || [];
     } else {
       claims = mockClaimsStore.filter(c =>
-        c.workerId === req.worker._id ||
+        c.worker_id === req.worker.id ||
         c.workerMobile === req.worker.mobile ||
-        c.workerId === req.worker.workerId
+        c.worker_id === req.worker.worker_id
       );
       if (claims.length === 0) claims = mockClaimsStore;
     }
@@ -338,47 +337,57 @@ const verifyPayoutOtp = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'OTP code is required for high-value payout confirmation' });
     }
 
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let claim = null;
 
-    if (isDbConnected) {
-      claim = await Claim.findById(id).populate('workerId');
+    if (process.env.SUPABASE_URL) {
+      const { data } = await supabase
+        .from('claims')
+        .select('*, workers(*)')
+        .eq('id', id)
+        .single();
+      claim = data;
     } else {
-      claim = mockClaimsStore.find(c => c._id === id);
+      claim = mockClaimsStore.find(c => c.id === id);
     }
 
     if (!claim) {
       return res.status(404).json({ status: 'fail', message: 'Claim not found' });
     }
 
-    // Execute Razorpay Payout
-    const upiId = claim.workerId?.upiId || claim.workerUpiId || 'worker@paytm';
+    const upiId = claim.workers?.upi_id || claim.workerUpiId || 'worker@paytm';
     const payoutRes = await razorpayMock.dispatchUpiPayout({
-      amount: claim.payoutAmount,
+      amount: claim.payout_amount,
       upiId,
-      claimId: claim._id,
-      workerName: claim.workerId?.name || claim.workerName
+      claimId: claim.id,
+      workerName: claim.workers?.name || claim.workerName
     });
 
     const newState = payoutRes.success ? 'Paid' : 'Payout-Failed';
     const transactionRef = payoutRes.transactionRef || null;
 
-    if (isDbConnected) {
-      claim.claimState = newState;
-      claim.otpVerificationRequired = false;
-      claim.transactionRef = transactionRef;
-      claim.resolvedAt = new Date();
-      await claim.save();
+    if (process.env.SUPABASE_URL) {
+      const { data: updated } = await supabase
+        .from('claims')
+        .update({
+          claim_state: newState,
+          otp_verification_required: false,
+          transaction_ref: transactionRef,
+          resolved_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      claim = updated;
     } else {
-      claim.claimState = newState;
-      claim.otpVerificationRequired = false;
-      claim.transactionRef = transactionRef;
-      claim.resolvedAt = new Date().toISOString();
+      claim.claim_state = newState;
+      claim.otp_verification_required = false;
+      claim.transaction_ref = transactionRef;
+      claim.resolved_at = new Date().toISOString();
     }
 
     return res.status(200).json({
       status: 'success',
-      message: `OTP verified! Razorpay UPI payout of ₹${claim.payoutAmount} dispatched (Ref: ${transactionRef || 'N/A'}).`,
+      message: `OTP verified! Razorpay UPI payout of ₹${claim.payout_amount} dispatched (Ref: ${transactionRef || 'N/A'}).`,
       claim
     });
   } catch (error) {
@@ -395,25 +404,29 @@ const submitAppeal = async (req, res) => {
     const { id } = req.params;
     const { appealStatement } = req.body;
 
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let claim = null;
 
-    if (isDbConnected) {
-      claim = await Claim.findById(id);
+    if (process.env.SUPABASE_URL) {
+      const { data } = await supabase
+        .from('claims')
+        .select('*')
+        .eq('id', id)
+        .single();
+      claim = data;
     } else {
-      claim = mockClaimsStore.find(c => c._id === id);
+      claim = mockClaimsStore.find(c => c.id === id);
     }
 
     if (!claim) {
       return res.status(404).json({ status: 'fail', message: 'Claim not found' });
     }
 
-    if (claim.claimState !== 'Blocked') {
+    if (claim.claim_state !== 'Blocked') {
       return res.status(400).json({ status: 'fail', message: 'Only blocked claims are eligible for worker appeal' });
     }
 
     // Enforce 48-Hour Appeal Window
-    const createdAtTime = new Date(claim.createdAt || Date.now()).getTime();
+    const createdAtTime = new Date(claim.created_at || Date.now()).getTime();
     const hoursElapsed = (Date.now() - createdAtTime) / (1000 * 60 * 60);
 
     if (hoursElapsed > 48) {
@@ -425,16 +438,20 @@ const submitAppeal = async (req, res) => {
 
     const updatedReason = `Worker Appeal (${new Date().toLocaleDateString('en-IN')}): ${appealStatement || 'Under Manual Admin Review'}`;
 
-    if (isDbConnected) {
-      claim.claimState = 'Appealed';
-      claim.reason = updatedReason;
-      await claim.save();
+    if (process.env.SUPABASE_URL) {
+      const { data: updated } = await supabase
+        .from('claims')
+        .update({ claim_state: 'Appealed', reason: updatedReason })
+        .eq('id', id)
+        .select()
+        .single();
+      claim = updated;
     } else {
-      claim.claimState = 'Appealed';
+      claim.claim_state = 'Appealed';
       claim.reason = updatedReason;
     }
 
-    console.log(`[Claim Appeal Queued]: Claim ID ${claim._id} moved to 'Appealed' state for admin review.`);
+    console.log(`[Claim Appeal Queued]: Claim ID ${claim.id} moved to 'Appealed' state for admin review.`);
 
     return res.status(200).json({
       status: 'success',
@@ -452,15 +469,16 @@ const submitAppeal = async (req, res) => {
  */
 const getAllClaims = async (req, res) => {
   try {
-    const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
     let claims = [];
 
-    if (isDbConnected) {
-      claims = await Claim.find({})
-        .populate('workerId')
-        .populate('triggerEventId')
-        .sort({ createdAt: -1 })
-        .lean();
+    if (process.env.SUPABASE_URL) {
+      const { data, error } = await supabase
+        .from('claims')
+        .select('*, workers(*), trigger_events(*)')
+        .order('created_at', { ascending: false });
+
+      if (error) throw new Error(error.message);
+      claims = data || [];
     } else {
       claims = mockClaimsStore;
     }
