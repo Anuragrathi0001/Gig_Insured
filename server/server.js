@@ -12,6 +12,16 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Root Welcome Route
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'Gig Insured Backend API',
+    database: process.env.SUPABASE_URL ? 'Supabase PostgreSQL' : 'In-Memory Fallback',
+    healthCheck: '/api/health'
+  });
+});
+
 // Health Check Route
 app.get('/api/health', (req, res) => {
   res.status(200).json({
