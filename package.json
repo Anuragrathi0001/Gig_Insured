@@ -1,0 +1,9 @@
+{
+  "name": "gig-insured-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server/server.js",
+    "build": "cd server && npm install"
+  }
+}

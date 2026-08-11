@@ -3,6 +3,7 @@ services:
     name: gig-insured-api
     env: node
     region: singapore
+    rootDir: server
     buildCommand: npm install
     startCommand: npm start
     envVars:
