@@ -11,38 +11,35 @@ const server = app.listen(PORT, async () => {
   console.log(`[Auth Test Server]: Running on http://localhost:${PORT}`);
 
   try {
-    const mobile = '9876543211';
-
-    // 1. Send OTP
-    console.log('\n--- Test 1: POST /api/auth/send-otp ---');
-    const sendRes = await axios.post(`http://localhost:${PORT}/api/auth/send-otp`, { mobile });
-    console.log('Send OTP Response:', sendRes.data);
-    const otp = sendRes.data.devOtpHint;
-
-    // 2. Verify Valid OTP & JWT Generation
-    console.log('\n--- Test 2: Valid OTP & Worker Creation ---');
-    const verifyRes = await axios.post(`http://localhost:${PORT}/api/auth/verify-otp`, { mobile, otp });
-    console.log('Verify OTP Response:', {
-      status: verifyRes.data.status,
-      isNewWorker: verifyRes.data.isNewWorker,
-      workerId: verifyRes.data.worker.workerId,
-      tokenLength: verifyRes.data.token.length
+    // 1. Google Firebase Login & Worker Creation
+    console.log('\n--- Test 1: POST /api/auth/google-login ---');
+    const googleRes = await axios.post(`http://localhost:${PORT}/api/auth/google-login`, {
+      email: 'abhayraj.delivery@gmail.com',
+      displayName: 'Abhayraj Rathi',
+      uid: 'google_uid_998877'
     });
-    const token = verifyRes.data.token;
+    console.log('Google Auth Response:', {
+      status: googleRes.data.status,
+      isNewWorker: googleRes.data.isNewWorker,
+      workerId: googleRes.data.worker.workerId || googleRes.data.worker.worker_id,
+      email: googleRes.data.worker.email,
+      tokenLength: googleRes.data.token.length
+    });
+    const token = googleRes.data.token;
 
-    // 3. Test Protected /api/auth/me endpoint
-    console.log('\n--- Test 3: Protected GET /api/auth/me ---');
+    // 2. Test Protected /api/auth/me endpoint
+    console.log('\n--- Test 2: Protected GET /api/auth/me ---');
     const meRes = await axios.get(`http://localhost:${PORT}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     console.log('Protected Route Profile Response:', {
       status: meRes.data.status,
-      workerId: meRes.data.worker.workerId,
-      mobile: meRes.data.worker.mobile
+      workerId: meRes.data.worker.workerId || meRes.data.worker.worker_id,
+      email: meRes.data.worker.email
     });
 
     console.log('\n==================================================');
-    console.log('[ALL AUTH TESTS PASSED CLEANLY!]');
+    console.log('[ALL FIREBASE GOOGLE AUTH TESTS PASSED CLEANLY!]');
     console.log('==================================================\n');
   } catch (error) {
     console.error('[Auth Test Error]:', error.response?.data || error.message);

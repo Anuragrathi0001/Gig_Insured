@@ -126,11 +126,11 @@ const autoCreateClaimsForTrigger = async (triggerEvent) => {
 
         const fraudResult = await fraudEngine.evaluateClaimFraud(rawClaim, worker, triggerEvent);
 
-        const requiresOtp = calculatedPayout.payoutAmount > 1000 && fraudResult.claimState === 'Auto-Approved';
-        let initialClaimState = requiresOtp ? 'Auto-Approved' : fraudResult.claimState;
+        const requiresOtp = false;
+        let initialClaimState = fraudResult.claimState;
         let transactionRef = null;
 
-        if (initialClaimState === 'Auto-Approved' && !requiresOtp) {
+        if (initialClaimState === 'Auto-Approved') {
           const payoutRes = await razorpayMock.dispatchUpiPayout({
             amount: calculatedPayout.payoutAmount,
             upiId: worker.upi_id || 'worker@paytm',
@@ -237,11 +237,11 @@ const autoCreateClaimsForTrigger = async (triggerEvent) => {
 
         const fraudResult = await fraudEngine.evaluateClaimFraud(rawMockClaim, worker, triggerEvent);
 
-        const requiresOtp = calculatedPayout.payoutAmount > 1000 && fraudResult.claimState === 'Auto-Approved';
-        let initialClaimState = requiresOtp ? 'Auto-Approved' : fraudResult.claimState;
+        const requiresOtp = false;
+        let initialClaimState = fraudResult.claimState;
         let transactionRef = null;
 
-        if (initialClaimState === 'Auto-Approved' && !requiresOtp) {
+        if (initialClaimState === 'Auto-Approved') {
           const payoutRes = await razorpayMock.dispatchUpiPayout({
             amount: calculatedPayout.payoutAmount,
             upiId: worker.upi_id || 'vikram@upi',
