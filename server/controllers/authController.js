@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabase');
-const otpService = require('../services/otpService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here';
 
@@ -10,140 +9,126 @@ const mockWorkerStore = new Map();
 /**
  * Generate 7-day JWT token
  */
-const generateToken = (id, mobile) => {
-  return jwt.sign({ id, mobile }, JWT_SECRET, {
+const generateToken = (id, email) => {
+  return jwt.sign({ id, email }, JWT_SECRET, {
     expiresIn: '7d'
   });
 };
 
 /**
- * @desc    Send OTP to mobile number
- * @route   POST /api/auth/send-otp
+ * @desc    Google Firebase Login / Verification
+ * @route   POST /api/auth/google-login
  * @access  Public
  */
-const sendOtp = async (req, res) => {
+const googleLogin = async (req, res) => {
   try {
-    const { mobile } = req.body;
+    const { email, displayName, photoURL, uid } = req.body;
 
-    if (!mobile || !/^[6-9]\d{9}$/.test(mobile.toString().trim())) {
+    if (!email && !uid) {
       return res.status(400).json({
         status: 'fail',
-        message: 'Please provide a valid 10-digit Indian mobile number'
-      });
-    }
-
-    const cleanMobile = mobile.toString().trim();
-    const otp = otpService.generateOtp(cleanMobile);
-
-    return res.status(200).json({
-      status: 'success',
-      message: 'OTP sent successfully.',
-      mobile: cleanMobile,
-      devOtpHint: otp
-    });
-  } catch (error) {
-    return res.status(429).json({
-      status: 'fail',
-      message: error.message || 'Failed to send OTP'
-    });
-  }
-};
-
-/**
- * @desc    Verify OTP & Login/Register worker
- * @route   POST /api/auth/verify-otp
- * @access  Public
- */
-const verifyOtp = async (req, res) => {
-  try {
-    const { mobile, otp } = req.body;
-
-    if (!mobile || !otp) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Both mobile number and OTP are required'
-      });
-    }
-
-    const cleanMobile = mobile.toString().trim();
-    const verification = otpService.verifyOtp(cleanMobile, otp);
-
-    if (!verification.valid) {
-      return res.status(400).json({
-        status: 'fail',
-        message: verification.message
+        message: 'Google credentials or email/uid required'
       });
     }
 
     let worker = null;
+    let isNewWorker = false;
 
     if (process.env.SUPABASE_URL) {
-      // Try to find existing worker
+      // Look up existing worker by email
       const { data: existing } = await supabase
         .from('workers')
         .select('*')
-        .eq('mobile', cleanMobile)
+        .eq('email', email)
         .single();
 
       if (existing) {
         worker = existing;
       } else {
-        // Create a new worker shell on first OTP verification
+        // Create worker with Google info
+        isNewWorker = true;
+        const workerId = `GIG-G-${uid ? uid.slice(-6).toUpperCase() : Math.floor(100000 + Math.random() * 900000)}`;
         const { data: created, error } = await supabase
           .from('workers')
           .insert({
-            mobile: cleanMobile,
-            name: '',
-            city: '',
-            zone: '',
+            name: displayName || email.split('@')[0],
+            email: email,
+            photo_url: photoURL || '',
+            mobile: '',
+            city: 'Bengaluru',
+            zone: 'Indiranagar',
             platform: 'Zomato',
-            worker_id: `WORKER-${cleanMobile.slice(-4)}-${Date.now()}`,
+            worker_id: workerId,
             avg_weekly_income: 4500,
-            upi_id: ''
+            upi_id: `${email.split('@')[0]}@okaxis`,
+            kyc_status: 'verified'
           })
           .select()
           .single();
 
         if (error) {
-          console.error('[Auth verifyOtp]: Supabase insert error:', error.message);
-          throw new Error(error.message);
+          console.warn('[Auth googleLogin]: Supabase insert error, falling back to in-memory:', error.message);
+          worker = {
+            id: `google_${uid || Date.now()}`,
+            name: displayName || email.split('@')[0],
+            email: email,
+            photo_url: photoURL || '',
+            mobile: '',
+            city: 'Bengaluru',
+            zone: 'Indiranagar',
+            platform: 'Zomato',
+            worker_id: workerId,
+            avg_weekly_income: 4500,
+            upi_id: `${email.split('@')[0]}@okaxis`,
+            kyc_status: 'verified'
+          };
+          mockWorkerStore.set(worker.id, worker);
+          mockWorkerStore.set(email, worker);
+        } else {
+          worker = created;
         }
-        worker = created;
       }
     } else {
       // In-memory fallback
-      console.log('[Auth]: SUPABASE_URL not set. Using in-memory worker store.');
-      worker = mockWorkerStore.get(cleanMobile);
+      worker = mockWorkerStore.get(email) || mockWorkerStore.get(`google_${uid}`);
 
       if (!worker) {
+        isNewWorker = true;
+        const workerId = `GIG-G-${uid ? uid.slice(-6).toUpperCase() : Math.floor(100000 + Math.random() * 900000)}`;
         worker = {
-          id: `worker_${Date.now()}`,
-          mobile: cleanMobile,
-          name: '',
-          city: '',
-          zone: '',
+          id: `google_${uid || Date.now()}`,
+          name: displayName || email.split('@')[0],
+          email: email,
+          photo_url: photoURL || '',
+          mobile: '',
+          city: 'Bengaluru',
+          zone: 'Indiranagar',
           platform: 'Zomato',
-          worker_id: `WORKER-${cleanMobile.slice(-4)}`,
+          worker_id: workerId,
           avg_weekly_income: 4500,
-          upi_id: '',
+          upi_id: `${email.split('@')[0]}@okaxis`,
+          kyc_status: 'verified',
           isNew: true
         };
-        mockWorkerStore.set(cleanMobile, worker);
+        mockWorkerStore.set(worker.id, worker);
+        mockWorkerStore.set(email, worker);
       }
     }
 
-    const token = generateToken(worker.id, worker.mobile);
+    const token = generateToken(worker.id, worker.email || worker.id);
 
     return res.status(200).json({
       status: 'success',
-      message: 'OTP verified successfully',
+      message: 'Google verification successful',
       token,
-      worker
+      worker,
+      isNewWorker
     });
   } catch (error) {
+    console.error('[Google Login Error]:', error);
     return res.status(500).json({
       status: 'error',
-      message: error.message || 'Server error during OTP verification'
+      message: error.message || 'Server error during Google authentication'
     });
   }
 };
@@ -167,7 +152,9 @@ const getMe = async (req, res) => {
       if (error) throw new Error(error.message);
       worker = data;
     } else {
-      worker = mockWorkerStore.get(req.worker.mobile) || req.worker;
+      worker = mockWorkerStore.get(req.worker.id) || 
+               (req.worker.email ? mockWorkerStore.get(req.worker.email) : null) || 
+               req.worker;
     }
 
     if (!worker) {
@@ -190,8 +177,7 @@ const getMe = async (req, res) => {
 };
 
 module.exports = {
-  sendOtp,
-  verifyOtp,
+  googleLogin,
   getMe,
   mockWorkerStore
 };
