@@ -25,14 +25,16 @@ const protect = async (req, res, next) => {
 
         if (error || !worker) {
           // Fallback to in-memory store when Supabase unreachable
-          req.worker = mockWorkerStore.get(decoded.mobile) || {
+          req.worker = mockWorkerStore.get(decoded.id) || 
+                       mockWorkerStore.get(decoded.mobile) || 
+                       (decoded.email ? mockWorkerStore.get(decoded.email) : null) || {
             id: decoded.id,
-            mobile: decoded.mobile,
-            name: 'Delivery Partner',
+            mobile: decoded.mobile || '',
+            name: decoded.name || 'Delivery Partner',
             platform: 'Zomato',
             city: 'Bengaluru',
             zone: 'Indiranagar',
-            worker_id: `WRK-${decoded.mobile?.slice(-4) || '1234'}`,
+            worker_id: `WRK-${(decoded.mobile || decoded.id || '1234').slice(-4)}`,
             avg_weekly_income: 4500,
             kyc_status: 'verified',
             upi_id: `${decoded.mobile || 'worker'}@paytm`
@@ -42,17 +44,20 @@ const protect = async (req, res, next) => {
         }
       } else {
         // No Supabase configured — use in-memory store
-        if (decoded.mobile && mockWorkerStore.has(decoded.mobile)) {
-          req.worker = mockWorkerStore.get(decoded.mobile);
+        const memoryWorker = mockWorkerStore.get(decoded.id) || 
+                             (decoded.mobile ? mockWorkerStore.get(decoded.mobile) : null) || 
+                             (decoded.email ? mockWorkerStore.get(decoded.email) : null);
+        if (memoryWorker) {
+          req.worker = memoryWorker;
         } else {
           req.worker = {
             id: decoded.id,
-            mobile: decoded.mobile,
+            mobile: decoded.mobile || '',
             name: 'Delivery Partner',
             platform: 'Zomato',
             city: 'Bengaluru',
             zone: 'Indiranagar',
-            worker_id: `WRK-${decoded.mobile?.slice(-4) || '1234'}`,
+            worker_id: `WRK-${(decoded.mobile || decoded.id || '1234').slice(-4)}`,
             avg_weekly_income: 4500,
             kyc_status: 'verified',
             upi_id: `${decoded.mobile || 'worker'}@paytm`
