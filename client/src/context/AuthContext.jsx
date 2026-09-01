@@ -6,19 +6,44 @@ import { signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged } from 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  // Store JWT token strictly in React memory/state
-  const [token, setToken] = useState(null);
-  const [worker, setWorker] = useState(null);
+  // Initialize state from localStorage so page refreshes never drop session
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem('gig_token') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [worker, setWorkerState] = useState(() => {
+    try {
+      const stored = localStorage.getItem('gig_worker');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [firebaseUser, setFirebaseUser] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Configure global Axios interceptor for memory-stored JWT
+  const setWorker = (workerData) => {
+    setWorkerState(workerData);
+    if (workerData) {
+      localStorage.setItem('gig_worker', JSON.stringify(workerData));
+    } else {
+      localStorage.removeItem('gig_worker');
+    }
+  };
+
+  // Configure global Axios interceptor for JWT authorization header
   useEffect(() => {
     const requestInterceptor = axios.interceptors.request.use(
       (config) => {
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        const activeToken = token || localStorage.getItem('gig_token');
+        if (activeToken) {
+          config.headers.Authorization = `Bearer ${activeToken}`;
         }
         return config;
       },
@@ -30,11 +55,70 @@ export const AuthProvider = ({ children }) => {
     };
   }, [token]);
 
-  // Listen to Firebase auth state changes
+  // Listen to Firebase Auth state changes and restore session on page reload
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setFirebaseUser(currentUser);
+
+      if (currentUser) {
+        // If we already have stored token and worker, optionally refresh from /api/auth/me
+        const storedToken = localStorage.getItem('gig_token');
+        if (storedToken) {
+          try {
+            const meRes = await axios.get('/api/auth/me', {
+              headers: { Authorization: `Bearer ${storedToken}` }
+            });
+            if (meRes.data?.worker) {
+              setWorkerState(meRes.data.worker);
+              localStorage.setItem('gig_worker', JSON.stringify(meRes.data.worker));
+            }
+          } catch (e) {
+            console.warn('[AuthContext] Session verify failed, re-authenticating with backend:', e);
+            // Re-authenticate with backend seamlessly
+            try {
+              const res = await axios.post('/api/auth/google-login', {
+                email: currentUser.email,
+                displayName: currentUser.displayName,
+                photoURL: currentUser.photoURL,
+                uid: currentUser.uid,
+              });
+              setToken(res.data.token);
+              setWorkerState(res.data.worker);
+              localStorage.setItem('gig_token', res.data.token);
+              localStorage.setItem('gig_worker', JSON.stringify(res.data.worker));
+            } catch (err) {
+              console.error('[AuthContext] Re-auth failed:', err);
+            }
+          }
+        } else {
+          // No token in localStorage, exchange Firebase user with backend
+          try {
+            const res = await axios.post('/api/auth/google-login', {
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              photoURL: currentUser.photoURL,
+              uid: currentUser.uid,
+            });
+            setToken(res.data.token);
+            setWorkerState(res.data.worker);
+            localStorage.setItem('gig_token', res.data.token);
+            localStorage.setItem('gig_worker', JSON.stringify(res.data.worker));
+          } catch (err) {
+            console.error('[AuthContext] Firebase exchange error:', err);
+          }
+        }
+      } else {
+        // Firebase user is null
+        const storedToken = localStorage.getItem('gig_token');
+        if (!storedToken) {
+          setToken(null);
+          setWorkerState(null);
+        }
+      }
+
+      setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -58,7 +142,9 @@ export const AuthProvider = ({ children }) => {
       const { token: jwtToken, worker: workerData, isNewWorker } = res.data;
 
       setToken(jwtToken);
-      setWorker(workerData);
+      setWorkerState(workerData);
+      localStorage.setItem('gig_token', jwtToken);
+      localStorage.setItem('gig_worker', JSON.stringify(workerData));
       setLoading(false);
 
       return { isNewWorker, worker: workerData, user };
@@ -77,8 +163,10 @@ export const AuthProvider = ({ children }) => {
     } catch (e) {
       console.warn('[Firebase SignOut]:', e);
     }
+    localStorage.removeItem('gig_token');
+    localStorage.removeItem('gig_worker');
     setToken(null);
-    setWorker(null);
+    setWorkerState(null);
     setFirebaseUser(null);
     setError(null);
   };
