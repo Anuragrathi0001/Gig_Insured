@@ -1,6 +1,123 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, AlertCircle, TrendingUp, ShieldAlert, CheckCircle2, CloudRain, Flame, Wind, RefreshCw, Save, Zap, MapPin, Activity, Clock, ShieldCheck, Bug, Crosshair, MessageSquare, Check, X, FileSearch, PieChart, DollarSign, Smartphone, Wifi, Compass, LineChart, Layers, AlertTriangle, Play, ArrowRight, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { LayoutDashboard, Users, AlertCircle, TrendingUp, ShieldAlert, CheckCircle2, CloudRain, Flame, Wind, RefreshCw, Save, Zap, MapPin, Activity, Clock, ShieldCheck, Bug, Crosshair, MessageSquare, Check, X, FileSearch, PieChart, DollarSign, Smartphone, Wifi, Compass, LineChart, Layers, AlertTriangle, Play, ArrowRight, CheckCircle, ChevronDown } from 'lucide-react';
 import axios from 'axios';
+
+/* ── Custom Dropdown (Admin) ──────────────────────────────────────────── */
+function CustomSelect({ label, value, options, onChange, disabled }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
+  const selectedOption = options.find(o => o.value === value);
+
+  return (
+    <div ref={ref} className="relative w-full">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen(prev => !prev)}
+        className={`
+          w-full flex items-center gap-2.5 px-4 py-3
+          bg-[var(--input)] border rounded-[calc(var(--radius)*0.5)]
+          text-xs font-bold text-[var(--foreground)]
+          transition-all duration-200 select-none focus:outline-none
+          ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+          ${open
+            ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20 shadow-sm'
+            : 'border-[var(--border)] hover:border-[var(--ring)]/60'}
+        `}
+      >
+        {selectedOption?.emoji && (
+          <span className="text-base leading-none shrink-0">{selectedOption.emoji}</span>
+        )}
+        <span className="flex-1 text-left truncate">{selectedOption?.label ?? value}</span>
+        <ChevronDown
+          className={`w-4 h-4 text-[var(--muted-foreground)] shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {/* Panel */}
+      {open && !disabled && (
+        <div
+          className="absolute z-50 mt-1.5 w-full rounded-[calc(var(--radius)*0.65)]
+            border border-[var(--border)] bg-[var(--card)]
+            shadow-[0_8px_32px_rgba(0,0,0,0.14)] overflow-hidden"
+          style={{ animation: 'adminDropdownIn 0.15s cubic-bezier(.4,0,.2,1)' }}
+        >
+          {/* Header */}
+          <div className="px-3 py-2 border-b border-[var(--border)] bg-[var(--muted)]/60">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">
+              {label}
+            </span>
+          </div>
+
+          <ul className="max-h-52 overflow-y-auto py-1">
+            {options.map((opt) => {
+              const isSelected = opt.value === value;
+              return (
+                <li key={opt.value}>
+                  <button
+                    type="button"
+                    onClick={() => { onChange(opt.value); setOpen(false); }}
+                    className={`
+                      w-full flex items-center gap-3 px-3 py-2.5 text-xs font-semibold
+                      transition-colors duration-100 text-left
+                      ${isSelected
+                        ? 'bg-[var(--primary)]/12 text-[var(--primary)]'
+                        : 'text-[var(--foreground)] hover:bg-[var(--muted)]'}
+                    `}
+                  >
+                    {opt.emoji
+                      ? <span className="text-base leading-none shrink-0 w-5 text-center">{opt.emoji}</span>
+                      : <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black
+                          ${isSelected ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'bg-[var(--secondary)] text-[var(--muted-foreground)]'}`}>
+                          {opt.label.charAt(0)}
+                        </span>
+                    }
+                    <span className="flex-1 truncate">{opt.label}</span>
+                    {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-[var(--primary)] stroke-[3]" />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes adminDropdownIn {
+          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)    scale(1);    }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+const ZONE_OPTIONS = [
+  { value: 'Indiranagar',    label: 'Bengaluru — Indiranagar Hub' },
+  { value: 'Koramangala',    label: 'Bengaluru — Koramangala Hub' },
+  { value: 'Andheri West',   label: 'Mumbai — Andheri West Hub' },
+  { value: 'Connaught Place',label: 'Delhi — Connaught Place Hub' },
+];
+
+const SCENARIO_OPTIONS = [
+  { value: 'heavy_rain',    emoji: '🌧️', label: 'Heavy Monsoon Downpour (>30 mm/h)' },
+  { value: 'heatwave',      emoji: '🔥', label: 'Severe Summer Heatwave (>40°C)' },
+  { value: 'hazardous_aqi', emoji: '😷', label: 'Hazardous Severe AQI (>350)' },
+  { value: 'flash_flood',   emoji: '🌊', label: 'Urban Flash Waterlogging (45cm)' },
+];
 
 export default function AdminDashboard() {
   const [overview, setOverview] = useState(null);
@@ -136,48 +253,48 @@ export default function AdminDashboard() {
   const { totalActivePolicies, policiesByTier, financials, claimsByDisruption } = overview || {};
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-950 px-4 py-6 sm:px-6 lg:px-8 max-w-6xl mx-auto space-y-8">
+    <div className="min-h-[calc(100vh-3.5rem)] sm:min-h-[calc(100vh-4rem)] px-3 py-4 sm:px-6 lg:px-8 max-w-6xl mx-auto space-y-5 sm:space-y-8 text-[var(--foreground)]">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
-            <LayoutDashboard className="w-6 h-6 text-emerald-400" />
-            Insurer Admin Console & Live Demo Simulator
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[var(--foreground)] tracking-tight flex items-start gap-2 font-sans leading-tight">
+            <LayoutDashboard className="w-5 h-5 sm:w-7 sm:h-7 text-[var(--primary)] mt-0.5 shrink-0" />
+            <span>Insurer Admin Console &amp; Live Demo Simulator</span>
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400">
-            Real-Time Parametric Disruption Triggering, Telemetry Fraud Queue & Razorpay X Payouts
+          <p className="text-xs sm:text-sm font-medium text-[var(--foreground)]/70 mt-1 ml-7 sm:ml-0">
+            Real-Time Parametric Disruption Triggering, Telemetry Fraud Queue &amp; Razorpay X Payouts
           </p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
-          <CheckCircle2 className="w-4 h-4" />
+        <div className="flex items-center self-start sm:self-auto gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-[calc(var(--radius)*0.5)] bg-[var(--primary)]/15 border border-[var(--primary)]/40 text-[var(--primary)] text-xs font-bold shadow-sm shrink-0">
+          <CheckCircle2 className="w-3.5 h-3.5" />
           <span>Razorpay X Payout Engine Active</span>
         </div>
       </div>
 
-      {/* Live Disruption Simulation Control Console (Hackathon Pitch Feature) */}
-      <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-emerald-500/30 shadow-2xl space-y-5">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      {/* Live Disruption Simulation Control Console */}
+      <div className="p-4 sm:p-6 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md space-y-4 sm:space-y-5 text-[var(--card-foreground)]">
+        <div className="flex flex-col gap-3">
           <div>
-            <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[11px] font-extrabold uppercase tracking-wider">
+            <span className="px-2.5 py-1 rounded-full bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/40 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider inline-block mb-2">
               ⚡ Pitch Presentation Controls
             </span>
-            <h2 className="text-lg font-extrabold text-white mt-1">Live End-to-End Parametric Disruption Simulator</h2>
-            <p className="text-xs text-slate-400">Simulate real-time weather breach and watch automated Razorpay UPI payouts execute</p>
+            <h2 className="text-lg sm:text-xl font-extrabold text-[var(--foreground)] font-sans leading-snug">Live End-to-End Parametric Disruption Simulator</h2>
+            <p className="text-xs font-medium text-[var(--foreground)]/70 mt-1">Simulate real-time weather breach and watch automated Razorpay UPI payouts execute</p>
           </div>
 
           <button
             onClick={handleRunLiveDemoSimulation}
             disabled={simulating}
-            className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full sm:w-auto px-5 py-3 sm:px-6 sm:py-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--primary)] text-[var(--primary-foreground)] font-extrabold text-sm shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {simulating ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                <RefreshCw className="w-4 h-4 animate-spin text-[var(--primary-foreground)]" />
                 <span>Processing Pipeline...</span>
               </>
             ) : (
               <>
-                <Play className="w-4 h-4 fill-slate-950" />
+                <Play className="w-4 h-4 fill-current" />
                 <span>Trigger Live Disruption</span>
               </>
             )}
@@ -187,75 +304,52 @@ export default function AdminDashboard() {
         {/* Controls selectors */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
           <div>
-            <label className="text-xs font-bold text-slate-400 mb-1.5 block">Select Target Zone Polygon:</label>
-            <select
+            <label className="text-xs font-bold text-[var(--foreground)] mb-1.5 block">Select Target Zone Polygon:</label>
+            <CustomSelect
+              label="Select Zone"
               value={selectedSimZone}
-              onChange={(e) => setSelectedSimZone(e.target.value)}
+              options={ZONE_OPTIONS}
+              onChange={setSelectedSimZone}
               disabled={simulating}
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs font-bold focus:border-emerald-500 focus:outline-none"
-            >
-              <option value="Indiranagar">Bengaluru — Indiranagar Hub</option>
-              <option value="Koramangala">Bengaluru — Koramangala Hub</option>
-              <option value="Andheri West">Mumbai — Andheri West Hub</option>
-              <option value="Connaught Place">Delhi — Connaught Place Hub</option>
-            </select>
+            />
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-400 mb-1.5 block">Select Disruption Scenario:</label>
-            <select
+            <label className="text-xs font-bold text-[var(--foreground)] mb-1.5 block">Select Disruption Scenario:</label>
+            <CustomSelect
+              label="Select Scenario"
               value={selectedSimType}
-              onChange={(e) => setSelectedSimType(e.target.value)}
+              options={SCENARIO_OPTIONS}
+              onChange={setSelectedSimType}
               disabled={simulating}
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs font-bold focus:border-emerald-500 focus:outline-none"
-            >
-              <option value="heavy_rain">🌧️ Heavy Monsoon Downpour (&gt;30 mm/h)</option>
-              <option value="heatwave">🔥 Severe Summer Heatwave (&gt;40°C)</option>
-              <option value="hazardous_aqi">😷 Hazardous Severe AQI (&gt;350)</option>
-              <option value="flash_flood">🌊 Urban Flash Waterlogging (45cm)</option>
-            </select>
+            />
           </div>
         </div>
 
         {/* 5-Step Live Pipeline Execution Progress */}
         {simStep > 0 && (
-          <div className="pt-4 border-t border-slate-800/80 space-y-3">
-            <h4 className="text-xs font-extrabold text-slate-300 uppercase tracking-wider">5-Step Automated Execution Pipeline:</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-[11px]">
-              {/* Step 1 */}
-              <div className={`p-2.5 rounded-xl border font-bold transition-all ${
-                simStep >= 1 ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-950 border-slate-800 text-slate-600'
-              }`}>
-                1. Weather Signal Breach
-              </div>
-              {/* Step 2 */}
-              <div className={`p-2.5 rounded-xl border font-bold transition-all ${
-                simStep >= 2 ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-950 border-slate-800 text-slate-600'
-              }`}>
-                2. Geo Polygon Match
-              </div>
-              {/* Step 3 */}
-              <div className={`p-2.5 rounded-xl border font-bold transition-all ${
-                simStep >= 3 ? 'bg-purple-500/20 border-purple-500 text-purple-300' : 'bg-slate-950 border-slate-800 text-slate-600'
-              }`}>
-                3. Composite Fraud Scoring
-              </div>
-              {/* Step 4 */}
-              <div className={`p-2.5 rounded-xl border font-bold transition-all ${
-                simStep >= 4 ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-slate-950 border-slate-800 text-slate-600'
-              }`}>
-                4. Claim Decision Engine
-              </div>
-              {/* Step 5 */}
-              <div className={`p-2.5 rounded-xl border font-bold transition-all ${
-                simStep >= 5 ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300' : 'bg-slate-950 border-slate-800 text-slate-600'
-              }`}>
-                5. Razorpay UPI Dispatched 💸
-              </div>
+          <div className="pt-3 sm:pt-4 border-t border-[var(--border)] space-y-3">
+            <h4 className="text-[10px] sm:text-xs font-extrabold text-[var(--foreground)] uppercase tracking-wider">5-Step Automated Execution Pipeline:</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-[10px] sm:text-xs font-bold">
+              <div className={`p-2 sm:p-2.5 rounded-[calc(var(--radius)*0.4)] border transition-all ${
+                simStep >= 1 ? 'bg-[var(--primary)]/20 border-[var(--primary)] text-[var(--primary)]' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
+              }`}>1. Weather Signal</div>
+              <div className={`p-2 sm:p-2.5 rounded-[calc(var(--radius)*0.4)] border transition-all ${
+                simStep >= 2 ? 'bg-[var(--primary)]/20 border-[var(--primary)] text-[var(--primary)]' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
+              }`}>2. Geo Polygon</div>
+              <div className={`p-2 sm:p-2.5 rounded-[calc(var(--radius)*0.4)] border transition-all ${
+                simStep >= 3 ? 'bg-[var(--accent)]/20 border-[var(--accent)] text-[var(--accent)]' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
+              }`}>3. Fraud Score</div>
+              <div className={`p-2 sm:p-2.5 rounded-[calc(var(--radius)*0.4)] border transition-all ${
+                simStep >= 4 ? 'bg-[var(--chart-3)]/25 border-[var(--chart-3)] text-[var(--chart-3)]' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
+              }`}>4. Claim Decision</div>
+              <div className={`col-span-2 sm:col-span-1 p-2 sm:p-2.5 rounded-[calc(var(--radius)*0.4)] border transition-all ${
+                simStep >= 5 ? 'bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)] shadow-sm' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
+              }`}>5. Razorpay UPI 💸</div>
             </div>
 
             {simLogs && (
-              <div className="p-3 rounded-xl bg-slate-950 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+              <div className="p-3 sm:p-3.5 rounded-[calc(var(--radius)*0.4)] bg-[var(--background)] border border-[var(--primary)]/40 text-[var(--primary)] text-xs font-mono font-bold">
                 ✅ {simLogs.message}
               </div>
             )}
@@ -264,92 +358,96 @@ export default function AdminDashboard() {
       </div>
 
       {/* Financial Overview & Loss Ratio Metric Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Loss Ratio Card */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-950/60 via-slate-900 to-slate-950 border border-emerald-500/30 shadow-xl">
+        <div className="p-4 sm:p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-400 font-medium">Loss Ratio (%)</span>
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
+            <span className="text-[10px] sm:text-xs font-bold text-[var(--foreground)]/80">Loss Ratio (%)</span>
+            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--primary)]" />
           </div>
-          <p className="text-3xl font-extrabold text-emerald-400">{financials?.lossRatioPercentage || '0.0'}%</p>
-          <p className="text-[11px] text-slate-400 mt-1">Weekly + Cumulative Disruption Payout Ratio</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-[var(--primary)]">{financials?.lossRatioPercentage || '0.0'}%</p>
+          <p className="text-[10px] sm:text-xs font-medium text-[var(--foreground)]/70 mt-1">Weekly Disruption Payout Ratio</p>
         </div>
 
         {/* Total Premiums Collected Card */}
-        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
+        <div className="p-4 sm:p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-400 font-medium">Premiums Incepted</span>
-            <DollarSign className="w-4 h-4 text-cyan-400" />
+            <span className="text-[10px] sm:text-xs font-bold text-[var(--foreground)]/80">Premiums Incepted</span>
+            <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--primary)]" />
           </div>
-          <p className="text-2xl font-extrabold text-white">₹{financials?.totalPremiumsCollected || 0}</p>
-          <p className="text-[11px] text-cyan-400 font-semibold mt-1">Active Weekly Policies</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">₹{financials?.totalPremiumsCollected || 0}</p>
+          <p className="text-[10px] sm:text-xs font-bold text-[var(--primary)] mt-1">Active Weekly Policies</p>
         </div>
 
         {/* Total Payouts Disbursed Card */}
-        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
+        <div className="p-4 sm:p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-400 font-medium">Payouts Disbursed</span>
-            <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
+            <span className="text-[10px] sm:text-xs font-bold text-[var(--foreground)]/80">Payouts Disbursed</span>
+            <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--accent)] fill-[var(--accent)]" />
           </div>
-          <p className="text-2xl font-extrabold text-white">₹{financials?.totalPayoutsDisbursed || 0}</p>
-          <p className="text-[11px] text-amber-400 font-semibold mt-1">Direct Razorpay UPI Transfers</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">₹{financials?.totalPayoutsDisbursed || 0}</p>
+          <p className="text-[10px] sm:text-xs font-bold text-[var(--accent)] mt-1">Direct Razorpay UPI Transfers</p>
         </div>
 
         {/* Active Policies Breakdown Card */}
-        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
+        <div className="p-4 sm:p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md col-span-2 lg:col-span-1">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-400 font-medium">Active Policyholders</span>
-            <Users className="w-4 h-4 text-purple-400" />
+            <span className="text-[10px] sm:text-xs font-bold text-[var(--foreground)]/80">Active Policyholders</span>
+            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--primary)]" />
           </div>
-          <p className="text-2xl font-extrabold text-white">{totalActivePolicies || 0} Workers</p>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Basic: {policiesByTier?.Basic || 0} | Std: {policiesByTier?.Standard || 0} | Prem: {policiesByTier?.Premium || 0}
+          <p className="text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">{totalActivePolicies || 0} Workers</p>
+          <p className="text-[10px] sm:text-xs font-medium text-[var(--foreground)]/70 mt-1">
+            Basic: <strong className="text-[var(--foreground)]">{policiesByTier?.Basic || 0}</strong> | Std: <strong className="text-[var(--foreground)]">{policiesByTier?.Standard || 0}</strong> | Prem: <strong className="text-[var(--foreground)]">{policiesByTier?.Premium || 0}</strong>
           </p>
         </div>
       </div>
 
       {/* Next Week Predictive Analytics & Claims Forecast Panel */}
-      <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <LineChart className="w-5 h-5 text-cyan-400" />
-              Next-Week Predictive Analytics & Claim Volume Forecast
-            </h3>
-            <p className="text-xs text-slate-400">Rule-based predictive projection of disruption probability & payout liabilities by zone</p>
+      <div className="p-4 sm:p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md space-y-4">
+        {/* Section header — stacked on mobile, side-by-side on sm+ */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <LineChart className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--primary)] shrink-0" />
+              <h3 className="text-sm sm:text-base font-bold text-[var(--foreground)] font-sans leading-snug">
+                Next-Week Predictive Analytics &amp; Claim Volume Forecast
+              </h3>
+            </div>
+            <p className="text-[10px] sm:text-xs font-medium text-[var(--foreground)]/70 ml-6 sm:ml-7">
+              Rule-based predictive projection of disruption probability &amp; payout liabilities by zone
+            </p>
           </div>
-          <span className="px-2.5 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-[11px] font-extrabold uppercase">
-            AI Time-Series Model (TODO ML Marker)
+          <span className="self-start sm:self-auto shrink-0 px-2.5 py-1 rounded-full bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 text-[10px] sm:text-xs font-extrabold uppercase whitespace-nowrap">
+            AI Time-Series
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
           {forecast.map((f) => (
-            <div key={f.zoneId || f.zoneName} className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-white">{f.zoneName}</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase border ${
+            <div key={f.zoneId || f.zoneName} className="p-3 sm:p-4 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs sm:text-sm font-extrabold text-[var(--foreground)] truncate">{f.zoneName}</span>
+                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-extrabold uppercase border ${
                   f.heatLevel === 'CRITICAL_RISK'
-                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                    ? 'bg-[var(--destructive)]/15 text-[var(--destructive)] border-[var(--destructive)]/40'
                     : f.heatLevel === 'HIGH_RISK'
-                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                    : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                    ? 'bg-[var(--accent)]/20 text-[var(--accent)] border-[var(--accent)]/40'
+                    : 'bg-[var(--primary)]/15 text-[var(--primary)] border-[var(--primary)]/40'
                 }`}>
-                  {f.predictedDisruptionProbability}% Risk
+                  {f.predictedDisruptionProbability}%
                 </span>
               </div>
-
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between text-slate-400">
-                  <span>Projected Claims:</span>
-                  <strong className="text-white font-mono">{f.projectedClaimVolume} claims</strong>
+              <div className="space-y-1 text-[10px] sm:text-xs">
+                <div className="flex justify-between text-[var(--foreground)]/80">
+                  <span>Claims:</span>
+                  <strong className="text-[var(--foreground)] font-mono">{f.projectedClaimVolume}</strong>
                 </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>Estimated Liability:</span>
-                  <strong className="text-emerald-400 font-mono">₹{f.projectedPayoutExposure}</strong>
+                <div className="flex justify-between text-[var(--foreground)]/80">
+                  <span>Liability:</span>
+                  <strong className="text-[var(--primary)] font-mono font-bold">₹{f.projectedPayoutExposure}</strong>
                 </div>
-                <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-800 truncate">
-                  Factor: <span className="text-slate-300">{f.primaryRiskFactor}</span>
+                <div className="text-[9px] sm:text-[10px] text-[var(--foreground)]/60 pt-1 border-t border-[var(--border)] truncate">
+                  {f.primaryRiskFactor}
                 </div>
               </div>
             </div>
@@ -358,51 +456,49 @@ export default function AdminDashboard() {
       </div>
 
       {/* Zone-Level Claims Density & Spatial Risk Heatmap Grid */}
-      <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md space-y-3 sm:space-y-4">
+        <div className="flex items-start gap-2">
+          <Layers className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--primary)] shrink-0 mt-0.5" />
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Layers className="w-5 h-5 text-emerald-400" />
-              Zone-Level Claims Density & Spatial Risk Heatmap Grid
+            <h3 className="text-sm sm:text-base font-bold text-[var(--foreground)] font-sans leading-snug">
+              Zone-Level Claims Density &amp; Spatial Risk Heatmap
             </h3>
-            <p className="text-xs text-slate-400">GeoJSON polygon spatial risk score mapping per delivery cluster</p>
+            <p className="text-[10px] sm:text-xs font-medium text-[var(--foreground)]/70 mt-0.5">GeoJSON polygon spatial risk score mapping per delivery cluster</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3">
           {heatmap.map((h) => {
             const riskColors = {
-              CRITICAL_RISK: 'from-rose-950/80 to-slate-950 border-rose-500/40 text-rose-300',
-              HIGH_RISK: 'from-amber-950/60 to-slate-950 border-amber-500/40 text-amber-300',
-              MODERATE_RISK: 'from-cyan-950/40 to-slate-950 border-cyan-500/30 text-cyan-300',
-              LOW_RISK: 'from-emerald-950/40 to-slate-950 border-emerald-500/30 text-emerald-300'
+              CRITICAL_RISK: 'bg-[var(--destructive)]/15 border-[var(--destructive)]/40 text-[var(--destructive)]',
+              HIGH_RISK: 'bg-[var(--accent)]/20 border-[var(--accent)]/40 text-[var(--accent)]',
+              MODERATE_RISK: 'bg-[var(--secondary)] border-[var(--border)] text-[var(--foreground)]',
+              LOW_RISK: 'bg-[var(--primary)]/15 border-[var(--primary)]/40 text-[var(--primary)]'
             };
 
             return (
               <div
                 key={h.zoneName}
-                className={`p-4 rounded-2xl bg-gradient-to-br border shadow-xl space-y-3 ${riskColors[h.heatLevel] || riskColors.MODERATE_RISK}`}
+                className={`p-3 sm:p-4 rounded-[calc(var(--radius)*0.6)] border shadow-sm space-y-2.5 ${riskColors[h.heatLevel] || riskColors.MODERATE_RISK}`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-extrabold text-white">{h.zoneName}</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-slate-950/80 border border-slate-700">
-                    Score: {h.zoneRiskScore}/100
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-extrabold text-[var(--foreground)] truncate">{h.zoneName}</span>
+                  <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-extrabold uppercase bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)]">
+                    {h.zoneRiskScore}/100
                   </span>
                 </div>
-
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Claims Density:</span>
-                    <strong className="font-mono text-white">{h.claimsDensityScore} claims/sqkm</strong>
+                <div className="space-y-1 text-[10px] sm:text-xs font-medium">
+                  <div className="flex justify-between text-[var(--foreground)]/80">
+                    <span>Density:</span>
+                    <strong className="font-mono text-[var(--foreground)]">{h.claimsDensityScore}/sqkm</strong>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Disruption Prob:</span>
-                    <strong className="font-mono">{h.disruptionProb}%</strong>
+                  <div className="flex justify-between text-[var(--foreground)]/80">
+                    <span>Prob:</span>
+                    <strong className="font-mono text-[var(--foreground)] font-bold">{h.disruptionProb}%</strong>
                   </div>
                 </div>
-
-                <div className="pt-2 border-t border-slate-800 text-[10px] font-mono text-slate-400 truncate">
-                  Boundary: GeoJSON Polygon ({h.coordinates?.length || 5} Vertices)
+                <div className="pt-1.5 border-t border-[var(--border)] text-[9px] font-mono text-[var(--foreground)]/60 truncate">
+                  GeoJSON ({h.coordinates?.length || 5} Vertices)
                 </div>
               </div>
             );
@@ -411,55 +507,57 @@ export default function AdminDashboard() {
       </div>
 
       {/* Disruption Type Visual Breakdown Row */}
-      <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
-        <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-          <PieChart className="w-4 h-4 text-cyan-400" />
-          Parametric Disruption Claims Breakdown by Event Type
-        </h3>
+      <div className="p-4 sm:p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md">
+        <div className="flex items-center gap-2 mb-3 sm:mb-4">
+          <PieChart className="w-4 h-4 text-[var(--primary)]" />
+          <h3 className="text-sm font-bold text-[var(--foreground)] font-sans">Parametric Claims Breakdown by Event Type</h3>
+        </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
-          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">🌧️ Rain</span>
-            <p className="text-xl font-bold text-cyan-400 mt-1">{claimsByDisruption?.rain || 0}</p>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">🔥 Extreme Heat</span>
-            <p className="text-xl font-bold text-amber-400 mt-1">{claimsByDisruption?.heat || 0}</p>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">😷 Hazardous AQI</span>
-            <p className="text-xl font-bold text-rose-400 mt-1">{claimsByDisruption?.aqi || 0}</p>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">🌊 Flash Flood</span>
-            <p className="text-xl font-bold text-blue-400 mt-1">{claimsByDisruption?.flood || 0}</p>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">🚨 Curfew / Strike</span>
-            <p className="text-xl font-bold text-purple-400 mt-1">{claimsByDisruption?.curfew || 0}</p>
-          </div>
+        {/* 3-col on mobile (tight), 5-col sm+ */}
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 text-center">
+          {[
+            { emoji: '🌧️', label: 'Rain', value: claimsByDisruption?.rain || 0, color: 'text-[var(--primary)]' },
+            { emoji: '🔥', label: 'Heat', value: claimsByDisruption?.heat || 0, color: 'text-[var(--accent)]' },
+            { emoji: '😷', label: 'AQI', value: claimsByDisruption?.aqi || 0, color: 'text-[var(--destructive)]' },
+            { emoji: '🌊', label: 'Flood', value: claimsByDisruption?.flood || 0, color: 'text-[var(--primary)]' },
+            { emoji: '🚨', label: 'Curfew', value: claimsByDisruption?.curfew || 0, color: 'text-[var(--accent)]', fullWidth: true },
+          ].map(({ emoji, label, value, color, fullWidth }) => (
+            <div
+              key={label}
+              className={`p-2.5 sm:p-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)] ${
+                fullWidth ? 'col-span-3 sm:col-span-1 flex items-center justify-center gap-4 sm:flex-col sm:gap-0' : ''
+              }`}
+            >
+              <div>
+                <div className="text-base sm:text-lg leading-none mb-1">{emoji}</div>
+                <p className="text-[9px] sm:text-[10px] font-bold text-[var(--foreground)]/70 uppercase tracking-wide">{label}</p>
+              </div>
+              <p className={`text-xl sm:text-2xl font-extrabold mt-0.5 sm:mt-1 ${color}`}>{value}</p>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Fraud Attack Simulator Bar */}
-      <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-slate-800 shadow-xl">
-        <div className="flex items-center justify-between mb-3">
+      <div className="p-4 sm:p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md">
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-3">
           <div className="flex items-center gap-2">
-            <Crosshair className="w-4 h-4 text-rose-400" />
-            <h3 className="text-sm font-bold text-white">Simulate Fraud Attack Vectors (Pitch Demo)</h3>
+            <Crosshair className="w-4 h-4 text-[var(--destructive)] shrink-0" />
+            <h3 className="text-sm font-bold text-[var(--foreground)] font-sans leading-snug">Simulate Fraud Attack Vectors</h3>
           </div>
-          <span className="text-xs text-slate-400 font-medium">
-            Active Attack: <strong className="text-rose-400 uppercase">{activeFraudScenario}</strong>
+          <span className="text-xs font-bold text-[var(--foreground)]/70 ml-6 sm:ml-0">
+            Active: <strong className="text-[var(--destructive)] uppercase">{activeFraudScenario.replace(/_/g, ' ')}</strong>
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {/* 1 col mobile → 2 col xs → 4 col sm+ */}
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-2">
           <button
             onClick={() => handleSimulateFraud('normal')}
-            className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 ${
               activeFraudScenario === 'normal'
-                ? 'bg-slate-800 border-emerald-500 text-emerald-400'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                ? 'bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)] shadow-sm'
+                : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)] hover:border-[var(--ring)]'
             }`}
           >
             ✅ Normal Genuine Claim
@@ -467,65 +565,67 @@ export default function AdminDashboard() {
 
           <button
             onClick={() => handleSimulateFraud('gps_spoofing')}
-            className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 ${
               activeFraudScenario === 'gps_spoofing'
-                ? 'bg-rose-500/20 border-rose-500 text-rose-300'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                ? 'bg-[var(--destructive)] text-white border-[var(--destructive)] shadow-sm'
+                : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)] hover:border-[var(--destructive)]'
             }`}
           >
-            🚨 GPS Spoofing (+25 pts)
+            🚨 GPS Spoofing <span className="opacity-60">(+25)</span>
           </button>
 
           <button
             onClick={() => handleSimulateFraud('fake_weather')}
-            className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 ${
               activeFraudScenario === 'fake_weather'
-                ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-sm'
+                : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)] hover:border-[var(--accent)]'
             }`}
           >
-            🚴 Fake Weather Ride (+30 pts)
+            🚴 Fake Weather Ride <span className="opacity-60">(+30)</span>
           </button>
 
           <button
             onClick={() => handleSimulateFraud('coordinated_ring')}
-            className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 ${
               activeFraudScenario === 'coordinated_ring'
-                ? 'bg-purple-500/20 border-purple-500 text-purple-300'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                ? 'bg-[var(--destructive)] text-white border-[var(--destructive)] shadow-sm'
+                : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)] hover:border-[var(--destructive)]'
             }`}
           >
-            🌐 Coordinated Attack Ring (+35 pts)
+            🌐 Coordinated Ring <span className="opacity-60">(+35)</span>
           </button>
         </div>
       </div>
 
       {/* Fraud Queue Table with Evidence Drill-Down */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-amber-400" />
-              Fraud Review Queue (Claims Score 31-100)
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius)] overflow-hidden shadow-md">
+        <div className="p-4 sm:p-5 border-b border-[var(--border)] flex items-start sm:items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm sm:text-base font-bold text-[var(--foreground)] flex items-center gap-2 font-sans">
+              <ShieldAlert className="w-4 h-4 text-[var(--accent)] shrink-0" />
+              <span>Fraud Review Queue
+                <span className="text-[10px] sm:text-xs font-semibold text-[var(--muted-foreground)] ml-1.5">(Score 31–100)</span>
+              </span>
             </h3>
-            <p className="text-xs text-slate-400">Under-Review & Blocked claims requiring telemetry evidence inspection</p>
+            <p className="text-[10px] sm:text-xs font-medium text-[var(--foreground)]/70 mt-0.5 ml-6">Under-Review &amp; Blocked claims requiring telemetry inspection</p>
           </div>
           <button
             onClick={fetchDashboardData}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+            className="shrink-0 p-2 rounded-[calc(var(--radius)*0.4)] bg-[var(--secondary)] hover:bg-[var(--secondary)]/80 text-[var(--secondary-foreground)] transition-colors border border-[var(--border)]"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
 
         {fraudQueue.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 text-xs">
+          <div className="p-8 text-center text-[var(--foreground)]/70 text-xs font-medium">
             No claims in fraud queue needing review.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950 text-slate-400 font-semibold uppercase border-b border-slate-800">
+              <thead className="bg-[var(--secondary)] text-[var(--foreground)] font-bold uppercase tracking-wider border-b border-[var(--border)]">
                 <tr>
                   <th className="px-4 py-3">Claim ID & Worker</th>
                   <th className="px-4 py-3">Fraud Score</th>
@@ -535,19 +635,19 @@ export default function AdminDashboard() {
                   <th className="px-4 py-3">Admin Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-200">
+              <tbody className="divide-y divide-[var(--border)] text-[var(--foreground)]">
                 {fraudQueue.map((c) => (
-                  <tr key={c._id} className="hover:bg-slate-800/40">
+                  <tr key={c._id} className="hover:bg-[var(--secondary)]/40 transition-colors">
                     <td className="px-4 py-3 font-mono text-[11px]">
-                      <div className="font-bold text-white">{c._id}</div>
-                      <div className="text-slate-400">{c.workerName || c.workerMobile || 'Worker'}</div>
+                      <div className="font-bold text-[var(--foreground)]">{c._id}</div>
+                      <div className="text-[var(--foreground)]/75">{c.workerName || c.workerMobile || 'Worker'}</div>
                     </td>
 
                     <td className="px-4 py-3 font-mono">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
                         c.fraudRiskScore >= 71
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          ? 'bg-[var(--destructive)]/15 text-[var(--destructive)] border border-[var(--destructive)]/40'
+                          : 'bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/40'
                       }`}>
                         {c.fraudRiskScore}/100
                       </span>
@@ -556,23 +656,23 @@ export default function AdminDashboard() {
                     <td className="px-4 py-3 font-extrabold uppercase text-[10px]">
                       <span className={`px-2 py-0.5 rounded border ${
                         c.claimState === 'Blocked'
-                          ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                          : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                          ? 'bg-[var(--destructive)]/15 text-[var(--destructive)] border-[var(--destructive)]/40'
+                          : 'bg-[var(--accent)]/15 text-[var(--accent)] border-[var(--accent)]/40'
                       }`}>
                         {c.claimState}
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 font-extrabold text-emerald-400 text-sm">
+                    <td className="px-4 py-3 font-extrabold text-[var(--primary)] text-sm">
                       ₹{c.payoutAmount}
                     </td>
 
                     <td className="px-4 py-3">
                       <button
                         onClick={() => setSelectedClaimEvidence(c)}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 font-bold text-[11px] transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-[calc(var(--radius)*0.4)] bg-[var(--secondary)] hover:bg-[var(--secondary)]/80 text-[var(--secondary-foreground)] border border-[var(--border)] font-bold text-[11px] transition-colors"
                       >
-                        <FileSearch className="w-3.5 h-3.5" />
+                        <FileSearch className="w-3.5 h-3.5 text-[var(--primary)]" />
                         <span>Inspect Evidence</span>
                       </button>
                     </td>
@@ -581,13 +681,13 @@ export default function AdminDashboard() {
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => handleResolveClaim(c._id, 'approve')}
-                          className="px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 font-bold transition-all text-[11px]"
+                          className="px-3 py-1 rounded-[calc(var(--radius)*0.4)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold hover:brightness-110 transition-all text-[11px]"
                         >
                           Approve
                         </button>
                         <button
                           onClick={() => handleResolveClaim(c._id, 'reject')}
-                          className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 font-bold transition-all text-[11px]"
+                          className="px-3 py-1 rounded-[calc(var(--radius)*0.4)] bg-[var(--destructive)]/20 hover:bg-[var(--destructive)]/30 text-[var(--destructive)] border border-[var(--destructive)]/40 font-bold transition-all text-[11px]"
                         >
                           Reject
                         </button>
@@ -603,86 +703,87 @@ export default function AdminDashboard() {
 
       {/* Telemetry Evidence Drill-Down Modal */}
       {selectedClaimEvidence && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-2xl bg-[var(--card)] border-2 border-[var(--border)] rounded-[var(--radius)] p-6 shadow-2xl space-y-4 text-[var(--card-foreground)]">
             <button
               onClick={() => setSelectedClaimEvidence(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+              className="absolute top-4 right-4 text-[var(--foreground)]/70 hover:text-[var(--foreground)] p-1.5 rounded-[calc(var(--radius)*0.4)] hover:bg-[var(--muted)]"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-3">
-              <FileSearch className="w-6 h-6 text-cyan-400" />
+              <FileSearch className="w-6 h-6 text-[var(--primary)]" />
               <div>
-                <h3 className="text-lg font-bold text-white">Telemetry & Fraud Risk Evidence Bundle</h3>
-                <p className="text-xs text-slate-400">Claim ID: {selectedClaimEvidence._id} | Risk Score: <strong className="text-amber-400">{selectedClaimEvidence.fraudRiskScore}/100</strong></p>
+                <h3 className="text-lg font-bold text-[var(--foreground)]">Telemetry & Fraud Risk Evidence Bundle</h3>
+                <p className="text-xs text-[var(--foreground)]/80">Claim ID: {selectedClaimEvidence._id} | Risk Score: <strong className="text-[var(--accent)]">{selectedClaimEvidence.fraudRiskScore}/100</strong></p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <div className="font-bold text-white flex items-center gap-2 mb-1">
-                  <Compass className="w-4 h-4 text-cyan-400" />
+              <div className="p-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)]">
+                <div className="font-bold text-[var(--foreground)] flex items-center gap-2 mb-1">
+                  <Compass className="w-4 h-4 text-[var(--primary)]" />
                   <span>GPS Movement & Speed Logs</span>
                 </div>
-                <p className="text-slate-300 font-mono text-[11px]">
+                <p className="text-[var(--foreground)]/85 font-mono text-[11px] leading-relaxed">
                   Speed: {selectedClaimEvidence.evidence?.gpsEvidence?.detectedSpeedKmph} km/h<br />
                   Fix: Static inside disruption zone ({selectedClaimEvidence.evidence?.gpsEvidence?.staticDurationMins}m)<br />
-                  Status: <strong className="text-amber-400">{selectedClaimEvidence.evidence?.gpsEvidence?.status}</strong>
+                  Status: <strong className="text-[var(--foreground)] font-bold">{selectedClaimEvidence.evidence?.gpsEvidence?.status}</strong>
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <div className="font-bold text-white flex items-center gap-2 mb-1">
-                  <Activity className="w-4 h-4 text-emerald-400" />
+              <div className="p-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)]">
+                <div className="font-bold text-[var(--foreground)] flex items-center gap-2 mb-1">
+                  <Activity className="w-4 h-4 text-[var(--primary)]" />
                   <span>Platform Delivery Telemetry</span>
                 </div>
-                <p className="text-slate-300 font-mono text-[11px]">
+                <p className="text-[var(--foreground)]/85 font-mono text-[11px] leading-relaxed">
                   Completed Deliveries: {selectedClaimEvidence.evidence?.platformEvidence?.ordersCompletedInWindow} orders<br />
                   Platform: {selectedClaimEvidence.evidence?.platformEvidence?.platformName}<br />
-                  Status: <strong className="text-amber-400">{selectedClaimEvidence.evidence?.platformEvidence?.status}</strong>
+                  Status: <strong className="text-[var(--foreground)] font-bold">{selectedClaimEvidence.evidence?.platformEvidence?.status}</strong>
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <div className="font-bold text-white flex items-center gap-2 mb-1">
-                  <Smartphone className="w-4 h-4 text-purple-400" />
+              <div className="p-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)]">
+                <div className="font-bold text-[var(--foreground)] flex items-center gap-2 mb-1">
+                  <Smartphone className="w-4 h-4 text-[var(--accent)]" />
                   <span>Device Hardware Fingerprint</span>
                 </div>
-                <p className="text-slate-300 font-mono text-[11px]">
+                <p className="text-[var(--foreground)]/85 font-mono text-[11px] leading-relaxed">
                   Fingerprint ID: {selectedClaimEvidence.evidence?.deviceEvidence?.fingerprintId}<br />
                   Duplicate Accounts: {selectedClaimEvidence.evidence?.deviceEvidence?.associatedWorkerAccounts} workers<br />
-                  Status: <strong className="text-purple-400">{selectedClaimEvidence.evidence?.deviceEvidence?.isDuplicateDevice ? 'DUPLICATE_DEVICE_FLAG' : 'UNIQUE'}</strong>
+                  Status: <strong className="text-[var(--accent)] font-bold">{selectedClaimEvidence.evidence?.deviceEvidence?.isDuplicateDevice ? 'DUPLICATE_DEVICE_FLAG' : 'UNIQUE'}</strong>
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <div className="font-bold text-white flex items-center gap-2 mb-1">
-                  <Wifi className="w-4 h-4 text-rose-400" />
+              <div className="p-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)]">
+                <div className="font-bold text-[var(--foreground)] flex items-center gap-2 mb-1">
+                  <Wifi className="w-4 h-4 text-[var(--destructive)]" />
                   <span>Network Subnet & Ring Graph</span>
                 </div>
-                <p className="text-slate-300 font-mono text-[11px]">
+                <p className="text-[var(--foreground)]/85 font-mono text-[11px] leading-relaxed">
                   Subnet IP: {selectedClaimEvidence.evidence?.networkEvidence?.subnetIp}<br />
                   Cluster Size: {selectedClaimEvidence.evidence?.networkEvidence?.clusterClaimsCount} claims in 10m<br />
-                  Status: <strong className="text-rose-400">{selectedClaimEvidence.evidence?.networkEvidence?.isClusterAttacked ? 'RING_ATTACK_DETECTED' : 'CLEAN'}</strong>
+                  Status: <strong className="text-[var(--destructive)] font-bold">{selectedClaimEvidence.evidence?.networkEvidence?.isClusterAttacked ? 'RING_ATTACK_DETECTED' : 'CLEAN'}</strong>
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            {/* Evidence modal action buttons — stack on mobile */}
+            <div className="flex flex-col-reverse xs:flex-row items-stretch xs:items-center justify-end gap-2.5 pt-2">
               <button
                 onClick={() => handleResolveClaim(selectedClaimEvidence._id, 'reject')}
-                className="px-4 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 font-extrabold text-xs transition-colors"
+                className="px-4 py-3 xs:py-2.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--destructive)]/20 hover:bg-[var(--destructive)]/30 text-[var(--destructive)] border border-[var(--destructive)]/40 font-extrabold text-xs transition-colors text-center"
               >
-                Reject Claim & Uphold Block
+                Reject &amp; Uphold Block
               </button>
 
               <button
                 onClick={() => handleResolveClaim(selectedClaimEvidence._id, 'approve')}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/20 transition-all"
+                className="px-4 py-3 xs:py-2.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--primary)] text-[var(--primary-foreground)] font-extrabold text-xs shadow-md hover:brightness-110 transition-all text-center"
               >
-                Overrule Score & Dispatch UPI Payout (₹{selectedClaimEvidence.payoutAmount})
+                Approve &amp; Dispatch ₹{selectedClaimEvidence.payoutAmount}
               </button>
             </div>
           </div>
@@ -690,90 +791,146 @@ export default function AdminDashboard() {
       )}
 
       {/* Zone Threshold Configuration Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-bold text-white">Zone Management & Premium Band Configurator</h3>
-            <p className="text-xs text-slate-400">Configure disruption trigger thresholds per geographic polygon zone</p>
-          </div>
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius)] overflow-hidden shadow-md">
+        <div className="p-4 sm:p-5 border-b border-[var(--border)]">
+          <h3 className="text-sm sm:text-base font-bold text-[var(--foreground)] font-sans">Zone Management &amp; Premium Band Configurator</h3>
+          <p className="text-[10px] sm:text-xs font-medium text-[var(--foreground)]/70 mt-0.5">Configure disruption trigger thresholds per geographic polygon zone</p>
         </div>
 
         {loading ? (
           <div className="p-12 text-center">
-            <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto mb-2" />
-            <p className="text-xs text-slate-400">Loading zone configurations...</p>
+            <RefreshCw className="w-6 h-6 text-[var(--primary)] animate-spin mx-auto mb-2" />
+            <p className="text-xs font-medium text-[var(--foreground)]/70">Loading zone configurations...</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950 text-slate-400 font-semibold uppercase border-b border-slate-800">
-                <tr>
-                  <th className="px-4 py-3">Zone & City</th>
-                  <th className="px-4 py-3">Live Telemetry</th>
-                  <th className="px-4 py-3">Rain Threshold</th>
-                  <th className="px-4 py-3">Heat Threshold</th>
-                  <th className="px-4 py-3">AQI Threshold</th>
-                  <th className="px-4 py-3">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                {zones.map((z) => {
-                  const live = z.liveWeather || {};
-                  const thresholds = z.triggerThresholds || {};
-                  return (
-                    <tr key={z._id} className="hover:bg-slate-800/40">
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-white">{z.zoneName}</div>
-                        <div className="text-[11px] text-slate-400">{z.city}</div>
-                      </td>
+          <>
+            {/* Mobile: stacked cards */}
+            <div className="block sm:hidden divide-y divide-[var(--border)]">
+              {zones.map((z) => {
+                const live = z.liveWeather || {};
+                const thresholds = z.triggerThresholds || {};
+                return (
+                  <div key={z._id} className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-extrabold text-[var(--foreground)]">{z.zoneName}</div>
+                        <div className="text-[10px] font-semibold text-[var(--foreground)]/60">{z.city}</div>
+                      </div>
+                      <div className="text-[10px] font-mono font-bold text-right">
+                        <div className="text-[var(--primary)]">🌧️ {live.rainMmPerHour || 0} mm/h</div>
+                        <div className="text-[var(--accent)]">🔥 {live.heatTempCelsius || 30}°C</div>
+                      </div>
+                    </div>
 
-                      <td className="px-4 py-3 font-mono text-[11px]">
-                        <span className="text-cyan-300">🌧️ {live.rainMmPerHour || 0} mm/h</span> |{' '}
-                        <span className="text-amber-300">🔥 {live.heatTempCelsius || 30}°C</span>
-                      </td>
-
-                      <td className="px-4 py-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-[9px] font-bold text-[var(--foreground)]/60 uppercase tracking-wide block mb-1">Rain (mm/h)</label>
                         <input
                           type="number"
                           value={editingThresholds[z._id]?.rainMmPerHour ?? thresholds.rainMmPerHour}
                           onChange={(e) => handleThresholdChange(z._id, 'rainMmPerHour', e.target.value)}
-                          className="w-16 px-2 py-1 bg-slate-950 border border-slate-700 rounded text-white font-mono text-xs focus:border-emerald-500 focus:outline-none"
+                          className="w-full px-2 py-2 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:outline-none"
                         />
-                      </td>
-
-                      <td className="px-4 py-3">
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-[var(--foreground)]/60 uppercase tracking-wide block mb-1">Heat (°C)</label>
                         <input
                           type="number"
                           value={editingThresholds[z._id]?.heatTempCelsius ?? thresholds.heatTempCelsius}
                           onChange={(e) => handleThresholdChange(z._id, 'heatTempCelsius', e.target.value)}
-                          className="w-16 px-2 py-1 bg-slate-950 border border-slate-700 rounded text-white font-mono text-xs focus:border-emerald-500 focus:outline-none"
+                          className="w-full px-2 py-2 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:outline-none"
                         />
-                      </td>
-
-                      <td className="px-4 py-3">
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-[var(--foreground)]/60 uppercase tracking-wide block mb-1">AQI</label>
                         <input
                           type="number"
                           value={editingThresholds[z._id]?.aqiThreshold ?? thresholds.aqiThreshold}
                           onChange={(e) => handleThresholdChange(z._id, 'aqiThreshold', e.target.value)}
-                          className="w-16 px-2 py-1 bg-slate-950 border border-slate-700 rounded text-white font-mono text-xs focus:border-emerald-500 focus:outline-none"
+                          className="w-full px-2 py-2 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:outline-none"
                         />
-                      </td>
+                      </div>
+                    </div>
 
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleSaveThresholds(z)}
-                          className="flex items-center gap-1 px-3 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 font-bold transition-all text-xs"
-                        >
-                          <Save className="w-3.5 h-3.5" />
-                          <span>Save</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    <button
+                      onClick={() => handleSaveThresholds(z)}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-[calc(var(--radius)*0.4)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold text-xs hover:brightness-110 shadow-sm active:scale-95 transition-all"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Zone Thresholds</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[var(--secondary)] text-[var(--foreground)] font-bold uppercase tracking-wider border-b border-[var(--border)]">
+                  <tr>
+                    <th className="px-4 py-3">Zone &amp; City</th>
+                    <th className="px-4 py-3">Live Telemetry</th>
+                    <th className="px-4 py-3">Rain (mm/h)</th>
+                    <th className="px-4 py-3">Heat (°C)</th>
+                    <th className="px-4 py-3">AQI</th>
+                    <th className="px-4 py-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)] text-[var(--foreground)]">
+                  {zones.map((z) => {
+                    const live = z.liveWeather || {};
+                    const thresholds = z.triggerThresholds || {};
+                    return (
+                      <tr key={z._id} className="hover:bg-[var(--secondary)]/40 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="font-extrabold text-[var(--foreground)]">{z.zoneName}</div>
+                          <div className="text-[11px] font-semibold text-[var(--foreground)]/75">{z.city}</div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-[11px] font-bold">
+                          <span className="text-[var(--primary)]">🌧️ {live.rainMmPerHour || 0} mm/h</span> |{' '}
+                          <span className="text-[var(--accent)]">🔥 {live.heatTempCelsius || 30}°C</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="number"
+                            value={editingThresholds[z._id]?.rainMmPerHour ?? thresholds.rainMmPerHour}
+                            onChange={(e) => handleThresholdChange(z._id, 'rainMmPerHour', e.target.value)}
+                            className="w-16 px-2.5 py-1.5 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:ring-1 focus:ring-[var(--ring)] focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="number"
+                            value={editingThresholds[z._id]?.heatTempCelsius ?? thresholds.heatTempCelsius}
+                            onChange={(e) => handleThresholdChange(z._id, 'heatTempCelsius', e.target.value)}
+                            className="w-16 px-2.5 py-1.5 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:ring-1 focus:ring-[var(--ring)] focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="number"
+                            value={editingThresholds[z._id]?.aqiThreshold ?? thresholds.aqiThreshold}
+                            onChange={(e) => handleThresholdChange(z._id, 'aqiThreshold', e.target.value)}
+                            className="w-16 px-2.5 py-1.5 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:ring-1 focus:ring-[var(--ring)] focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleSaveThresholds(z)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[calc(var(--radius)*0.3)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold transition-all text-xs hover:brightness-110 shadow-sm"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Save</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

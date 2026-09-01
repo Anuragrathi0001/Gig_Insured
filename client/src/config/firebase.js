@@ -3,13 +3,13 @@ import { getAnalytics, isSupported } from 'firebase/analytics';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCk7f_jYZo1WlMow-2UGfSO2FYlCaF6ZHQ",
-  authDomain: "gig-insure.firebaseapp.com",
-  projectId: "gig-insure",
-  storageBucket: "gig-insure.firebasestorage.app",
-  messagingSenderId: "697312983633",
-  appId: "1:697312983633:web:d59da4a9b1b634e9cad670",
-  measurementId: "G-CH2NP2VYG3"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase App

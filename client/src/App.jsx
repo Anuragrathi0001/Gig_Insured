@@ -9,7 +9,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] flex flex-col font-sans selection:bg-[var(--primary)] selection:text-[var(--primary-foreground)] transition-colors duration-200">
           <Navbar />
           <main className="flex-1">
             <Routes>
