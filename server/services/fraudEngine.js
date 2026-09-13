@@ -115,7 +115,7 @@ const evaluateClaimFraud = async (claim, worker = {}, triggerEvent = {}) => {
       severity: sig.severity
     };
 
-    if (process.env.SUPABASE_URL && claimId && !String(claimId).startsWith('claim_')) {
+    if (supabase && claimId && !String(claimId).startsWith('claim_')) {
       // Only persist to DB if claimId is a valid UUID (not a mock ID)
       const { data: flagDoc, error } = await supabase
         .from('fraud_flags')

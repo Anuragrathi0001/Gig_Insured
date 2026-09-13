@@ -36,18 +36,7 @@ const protect = async (req, res, next) => {
         // Use in-memory store
         req.worker = mockWorkerStore.get(decoded.id) || 
                      mockWorkerStore.get(decoded.mobile) || 
-                     (decoded.email ? mockWorkerStore.get(decoded.email) : null) || {
-          id: decoded.id,
-          mobile: decoded.mobile || '',
-          name: decoded.name || 'Delivery Partner',
-          platform: 'Zomato',
-          city: 'Bengaluru',
-          zone: 'Indiranagar',
-          worker_id: '',
-          avg_weekly_income: 4500,
-          kyc_status: 'pending',
-          upi_id: ''
-        };
+                     (decoded.email ? mockWorkerStore.get(decoded.email) : null);
       }
 
       if (!req.worker) {
@@ -75,4 +64,41 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+const ADMIN_EMAILS = [
+  'abhayrajrathi616@gmail.com',
+  'rathisanjita32@gmail.com'
+];
+
+/**
+ * Authorization guard for Admin-only routes
+ */
+const adminOnly = (req, res, next) => {
+  if (!req.worker) {
+    return res.status(401).json({
+      status: 'fail',
+      message: 'Not authorized, worker authentication required'
+    });
+  }
+
+  const workerEmail = (req.worker.email || '').trim().toLowerCase();
+  const envAdmins = process.env.ADMIN_EMAILS
+    ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim().toLowerCase())
+    : [];
+  const allAdminEmails = [...ADMIN_EMAILS, ...envAdmins];
+
+  const isAdmin = (workerEmail && allAdminEmails.includes(workerEmail)) ||
+                  req.worker.role === 'admin' ||
+                  req.worker.isAdmin === true ||
+                  req.worker.is_admin === true;
+
+  if (!isAdmin) {
+    return res.status(403).json({
+      status: 'fail',
+      message: 'Access denied: Administrator privileges required for this account'
+    });
+  }
+
+  return next();
+};
+
+module.exports = { protect, adminOnly };

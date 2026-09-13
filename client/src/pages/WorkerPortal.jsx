@@ -152,7 +152,7 @@ export default function WorkerPortal() {
                     </span>
                     <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[9px] sm:text-[10px] font-bold flex items-center gap-0.5 shrink-0">
                       <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-                      {worker?.kycStatus === 'verified' ? 'Verified' : 'In Setup'}
+                      {(worker?.kycStatus === 'verified' || worker?.kyc_status === 'verified') ? 'Verified' : 'In Setup'}
                     </span>
                   </div>
                   <p className="text-[10px] sm:text-xs text-[var(--muted-foreground)] truncate">

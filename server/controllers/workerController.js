@@ -44,7 +44,7 @@ const onboardWorker = async (req, res) => {
             worker_id: workerId.trim(),
             avg_weekly_income: income,
             upi_id: upiId.trim(),
-            kyc_status: 'in_progress',
+            kyc_status: 'pending',
             zone_risk_score: riskProfile.zoneRiskScore,
             weather_exposure_score: riskProfile.weatherExposureScore
           })
@@ -77,8 +77,8 @@ const onboardWorker = async (req, res) => {
         avgWeeklyIncome: income,
         upi_id: upiId.trim(),
         upiId: upiId.trim(),
-        kyc_status: 'in_progress',
-        kycStatus: 'in_progress',
+        kyc_status: 'pending',
+        kycStatus: 'pending',
         zone_risk_score: riskProfile.zoneRiskScore,
         zoneRiskScore: riskProfile.zoneRiskScore,
         weather_exposure_score: riskProfile.weatherExposureScore,

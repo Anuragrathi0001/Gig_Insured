@@ -16,7 +16,7 @@ const getZones = async (req, res) => {
   try {
     let zones = [];
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data, error } = await supabase.from('zone_configs').select('*');
       if (error) throw new Error(error.message);
       zones = data || [];
@@ -51,7 +51,7 @@ const createZone = async (req, res) => {
 
     let newZone;
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data, error } = await supabase
         .from('zone_configs')
         .insert({
@@ -95,7 +95,7 @@ const updateZone = async (req, res) => {
 
     let updatedZone = null;
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const updatePayload = {};
       if (triggerThresholds) updatePayload.trigger_thresholds = triggerThresholds;
       if (premiumBand) updatePayload.premium_band = premiumBand;
@@ -173,7 +173,7 @@ const getAdminOverview = async (req, res) => {
     let claims = [];
     let policies = [];
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data: claimData } = await supabase.from('claims').select('*');
       const { data: policyData } = await supabase.from('policies').select('*').eq('status', 'Active');
       claims = claimData || [];
@@ -266,7 +266,7 @@ const getFraudQueue = async (req, res) => {
   try {
     let queuedClaims = [];
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data, error } = await supabase
         .from('claims')
         .select('*, workers(*)')
@@ -337,7 +337,7 @@ const resolveQueuedClaim = async (req, res) => {
 
     let claim = null;
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data } = await supabase
         .from('claims')
         .select('*, workers(*)')
@@ -364,7 +364,7 @@ const resolveQueuedClaim = async (req, res) => {
       const newState = payoutRes.success ? 'Paid' : 'Payout-Failed';
       const transactionRef = payoutRes.transactionRef || null;
 
-      if (process.env.SUPABASE_URL) {
+      if (supabase) {
         const { data: updated } = await supabase
           .from('claims')
           .update({
@@ -392,7 +392,7 @@ const resolveQueuedClaim = async (req, res) => {
     } else {
       const updatedReason = `Admin Resolved (Rejected): ${reason || 'Fraud Risk Model Confirmed'}`;
 
-      if (process.env.SUPABASE_URL) {
+      if (supabase) {
         const { data: updated } = await supabase
           .from('claims')
           .update({ claim_state: 'Blocked', reason: updatedReason })
@@ -420,7 +420,7 @@ const getTriggerEvents = async (req, res) => {
   try {
     let triggers = [];
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data, error } = await supabase
         .from('trigger_events')
         .select('*')
@@ -446,7 +446,7 @@ const getFraudFlags = async (req, res) => {
   try {
     let flags = [];
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data, error } = await supabase
         .from('fraud_flags')
         .select('*, claims(*)')
@@ -472,7 +472,7 @@ const getPendingAppeals = async (req, res) => {
   try {
     let appeals = [];
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data, error } = await supabase
         .from('claims')
         .select('*, workers(*), trigger_events(*)')
@@ -506,7 +506,7 @@ const reviewClaimAppeal = async (req, res) => {
 
     let claim = null;
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data } = await supabase
         .from('claims')
         .select('*, workers(*)')
@@ -533,7 +533,7 @@ const reviewClaimAppeal = async (req, res) => {
       const newState = payoutRes.success ? 'Paid' : 'Payout-Failed';
       const transactionRef = payoutRes.transactionRef || null;
 
-      if (process.env.SUPABASE_URL) {
+      if (supabase) {
         const { data: updated } = await supabase
           .from('claims')
           .update({
@@ -561,7 +561,7 @@ const reviewClaimAppeal = async (req, res) => {
     } else {
       const updatedReason = `Admin Rejected Appeal: ${adminNote || 'Fraud Risk Model Upheld'}`;
 
-      if (process.env.SUPABASE_URL) {
+      if (supabase) {
         const { data: updated } = await supabase
           .from('claims')
           .update({ claim_state: 'Blocked', reason: updatedReason })

@@ -3,6 +3,21 @@ const supabase = require('../config/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here';
 
+// Designated Admin Emails
+const ADMIN_EMAILS = [
+  'abhayrajrathi616@gmail.com',
+  'rathisanjita32@gmail.com'
+];
+
+const checkIsAdminEmail = (email) => {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  const envAdmins = process.env.ADMIN_EMAILS
+    ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim().toLowerCase())
+    : [];
+  return [...ADMIN_EMAILS, ...envAdmins].includes(normalized);
+};
+
 // In-memory worker fallback store when Supabase is offline
 const mockWorkerStore = new Map();
 
@@ -34,6 +49,8 @@ const googleLogin = async (req, res) => {
     let worker = null;
     let isNewWorker = false;
 
+    const isUserAdmin = checkIsAdminEmail(email);
+
     if (supabase) {
       try {
         // Look up existing worker by email
@@ -62,7 +79,8 @@ const googleLogin = async (req, res) => {
             worker_id: tempDbId,
             avg_weekly_income: 4500,
             upi_id: '',
-            kyc_status: 'pending'
+            kyc_status: 'pending',
+            role: isUserAdmin ? 'admin' : 'worker'
           })
           .select()
           .single();
@@ -81,7 +99,10 @@ const googleLogin = async (req, res) => {
               worker_id: '',
               avg_weekly_income: 4500,
               upi_id: '',
-              kyc_status: 'pending'
+              kyc_status: 'pending',
+              role: isUserAdmin ? 'admin' : 'worker',
+              isAdmin: isUserAdmin,
+              is_admin: isUserAdmin
             };
             mockWorkerStore.set(worker.id, worker);
             mockWorkerStore.set(email, worker);
@@ -113,6 +134,9 @@ const googleLogin = async (req, res) => {
           avg_weekly_income: 4500,
           upi_id: '',
           kyc_status: 'pending',
+          role: isUserAdmin ? 'admin' : 'worker',
+          isAdmin: isUserAdmin,
+          is_admin: isUserAdmin,
           isNew: true
         };
         mockWorkerStore.set(worker.id, worker);
@@ -127,6 +151,18 @@ const googleLogin = async (req, res) => {
       worker.upiId = '';
       worker.kyc_status = 'pending';
       worker.kycStatus = 'pending';
+    }
+
+    // Strictly enforce role and isAdmin flags based on authorized email list
+    if (worker) {
+      const isAuthorizedAdmin = checkIsAdminEmail(worker.email || email);
+      worker.role = isAuthorizedAdmin ? 'admin' : 'worker';
+      worker.isAdmin = isAuthorizedAdmin;
+      worker.is_admin = isAuthorizedAdmin;
+
+      // Persist in mock store
+      mockWorkerStore.set(worker.id, worker);
+      if (worker.email) mockWorkerStore.set(worker.email, worker);
     }
 
     const token = generateToken(worker.id, worker.email || worker.id);
@@ -183,6 +219,11 @@ const getMe = async (req, res) => {
         message: 'Worker profile not found'
       });
     }
+
+    const isAuthorizedAdmin = checkIsAdminEmail(worker.email || req.worker.email);
+    worker.role = isAuthorizedAdmin ? 'admin' : (worker.role === 'admin' ? 'worker' : (worker.role || 'worker'));
+    worker.isAdmin = isAuthorizedAdmin;
+    worker.is_admin = isAuthorizedAdmin;
 
     return res.status(200).json({
       status: 'success',

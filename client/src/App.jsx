@@ -9,9 +9,9 @@ import AdminDashboard from './pages/AdminDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function ProtectedAdminRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, isAdmin } = useAuth();
   if (loading) return null;
-  if (!isAuthenticated) return <Navigate to="/" replace />;
+  if (!isAuthenticated || !isAdmin) return <Navigate to="/" replace />;
   return children;
 }
 

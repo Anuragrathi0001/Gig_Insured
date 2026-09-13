@@ -2,6 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { getZones, createZone, updateZone, simulateDisruption, simulateFraudAttack, getAdminOverview, getForecast, getHeatmap, getFraudQueue, resolveQueuedClaim, getTriggerEvents, getFraudFlags, getPendingAppeals, reviewClaimAppeal } = require('../controllers/adminController');
 const { getAllClaims } = require('../controllers/claimController');
+const { protect, adminOnly } = require('../middleware/authMiddleware');
+
+// Enforce authentication and administrator authorization across all admin endpoints
+router.use(protect);
+router.use(adminOnly);
 
 // Admin Zone Config & Disruption Management Endpoints
 router.get('/zones', getZones);

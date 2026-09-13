@@ -209,11 +209,63 @@ const seedData = async () => {
       await TriggerEvent.deleteMany({});
       await FraudFlag.deleteMany({});
 
-      await ZoneConfig.insertMany(demoZones);
-      await Worker.insertMany(demoWorkers);
-      await Policy.insertMany(demoPolicies);
-      await Claim.insertMany(demoClaims);
-      console.log('[MongoDB]: Seeded 4 Zones, 5 Workers, 5 Active Policies, and 2 Paid Claims.');
+      await ZoneConfig.insertMany(demoZones.map(({ _id, ...z }) => z));
+
+      // Insert workers and capture mapped ObjectIds
+      const workerIdMap = new Map();
+      const dbWorkers = await Promise.all(
+        demoWorkers.map(async ({ _id, ...w }) => {
+          const doc = await Worker.create(w);
+          workerIdMap.set(_id, doc._id);
+          return doc;
+        })
+      );
+
+      // Create a valid TriggerEvent for claims
+      const dbTrigger = await TriggerEvent.create({
+        zone: 'Indiranagar',
+        disruptionType: 'rain',
+        dataSnapshot: { rainMmPerHour: 35 },
+        status: 'confirmed',
+        confirmedAt: new Date()
+      });
+
+      // Insert policies using mapped worker ObjectIds
+      const policyIdMap = new Map();
+      const now = new Date();
+      const endOfWeek = new Date(Date.now() + 7 * 86400000);
+      const dbPolicies = await Promise.all(
+        demoPolicies.map(async ({ _id, workerId, ...p }) => {
+          const doc = await Policy.create({
+            tier: p.tier,
+            weeklyPremium: p.weeklyPremium,
+            weeklyBenefitCap: p.weeklyBenefitCap,
+            status: p.status,
+            autoRenew: p.autoRenew,
+            workerId: workerIdMap.get(workerId) || dbWorkers[0]._id,
+            coveragePeriodStart: now,
+            coveragePeriodEnd: endOfWeek
+          });
+          policyIdMap.set(_id, doc._id);
+          return doc;
+        })
+      );
+
+      // Insert schema-valid claims using mapped worker, policy, and trigger ObjectIds
+      const validDbClaims = demoClaims.map(({ _id, workerId, policyId, ...c }) => ({
+        workerId: workerIdMap.get(workerId) || dbWorkers[0]._id,
+        policyId: policyIdMap.get(policyId) || dbPolicies[0]._id,
+        triggerEventId: dbTrigger._id,
+        hoursLost: 4,
+        payoutAmount: c.payoutAmount,
+        fraudRiskScore: c.fraudRiskScore,
+        claimState: c.claimState,
+        reason: c.reason,
+        createdAt: c.createdAt
+      }));
+
+      await Claim.insertMany(validDbClaims);
+      console.log(`[MongoDB]: Seeded 4 Zones, 5 Workers, 5 Active Policies, and ${validDbClaims.length} Claims.`);
     } catch (err) {
       console.error('[MongoDB Seed Error]:', err.message);
     }

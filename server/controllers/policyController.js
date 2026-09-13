@@ -160,16 +160,22 @@ const activatePolicy = async (req, res) => {
       if (supabase && req.worker?.id) {
         await supabase.from('workers').update({ kyc_status: 'verified' }).eq('id', req.worker.id);
       }
-      const { mockWorkerStore } = require('../models/Worker');
+      const { mockWorkerStore } = require('./authController');
       if (mockWorkerStore) {
-        const w = mockWorkerStore.get(req.worker.id?.toString()) || (req.worker.email && mockWorkerStore.get(req.worker.email));
+        const w = mockWorkerStore.get(req.worker.id?.toString()) ||
+                  (req.worker.email && mockWorkerStore.get(req.worker.email)) ||
+                  (req.worker.mobile && mockWorkerStore.get(req.worker.mobile));
         if (w) {
           w.kyc_status = 'verified';
           w.kycStatus = 'verified';
         }
       }
+      if (req.worker) {
+        req.worker.kyc_status = 'verified';
+        req.worker.kycStatus = 'verified';
+      }
     } catch (e) {
-      // ignore
+      console.warn('[Policy Activation]: KYC status update warning:', e.message);
     }
 
     return res.status(200).json({
