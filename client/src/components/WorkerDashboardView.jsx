@@ -3,8 +3,21 @@ import { ShieldCheck, ShieldAlert, Zap, IndianRupee, Calendar, FileText, Downloa
 import axios from 'axios';
 
 export default function WorkerDashboardView({ onSwitchPlan }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(() => {
+    try {
+      const cached = localStorage.getItem('gig_dashboard_cache');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('gig_dashboard_cache');
+    } catch {
+      return true;
+    }
+  });
   const [error, setError] = useState(null);
   const [autoRenew, setAutoRenew] = useState(true);
 
@@ -13,13 +26,16 @@ export default function WorkerDashboardView({ onSwitchPlan }) {
   }, []);
 
   const fetchDashboard = async () => {
-    setLoading(true);
+    if (!data) setLoading(true);
     try {
       const res = await axios.get('/api/workers/dashboard');
-      setData(res.data.dashboard);
-      if (res.data.dashboard?.activePolicy) {
-        const pol = res.data.dashboard.activePolicy;
-        setAutoRenew(pol.autoRenew ?? pol.auto_renew ?? true);
+      if (res.data?.dashboard) {
+        setData(res.data.dashboard);
+        localStorage.setItem('gig_dashboard_cache', JSON.stringify(res.data.dashboard));
+        if (res.data.dashboard?.activePolicy) {
+          const pol = res.data.dashboard.activePolicy;
+          setAutoRenew(pol.autoRenew ?? pol.auto_renew ?? true);
+        }
       }
       setLoading(false);
     } catch (err) {
@@ -43,11 +59,53 @@ export default function WorkerDashboardView({ onSwitchPlan }) {
     a.click();
   };
 
-  if (loading) {
+  if (loading && !data) {
     return (
-      <div className="p-12 text-center glass-panel rounded-[var(--radius)]">
-        <RefreshCw className="w-6 h-6 text-[var(--primary)] animate-spin mx-auto mb-2" />
-        <p className="text-xs text-[var(--muted-foreground)]">Loading worker dashboard...</p>
+      <div className="space-y-6 animate-pulse">
+        {/* Hero Stat Header Row Skeleton */}
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="h-3.5 w-24 bg-[var(--muted)] rounded-md" />
+              <div className="h-5 w-20 bg-[var(--primary)]/15 rounded-full" />
+            </div>
+            <div className="h-6 w-32 bg-[var(--muted)] rounded-md" />
+            <div className="h-3 w-40 bg-[var(--muted)]/60 rounded-md" />
+          </div>
+          <div className="p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="h-3.5 w-28 bg-[var(--muted)] rounded-md" />
+              <div className="w-5 h-5 rounded-full bg-[var(--primary)]/20" />
+            </div>
+            <div className="h-7 w-20 bg-[var(--primary)]/20 rounded-md" />
+            <div className="h-3 w-36 bg-[var(--muted)]/60 rounded-md" />
+          </div>
+          <div className="p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="h-3.5 w-32 bg-[var(--muted)] rounded-md" />
+              <div className="w-5 h-5 rounded-full bg-emerald-500/20" />
+            </div>
+            <div className="h-6 w-28 bg-emerald-500/15 rounded-md" />
+            <div className="h-3 w-40 bg-[var(--muted)]/60 rounded-md" />
+          </div>
+        </div>
+
+        {/* 7-Day Timeline Skeleton */}
+        <div className="p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-40 bg-[var(--muted)] rounded-md" />
+            <div className="h-3 w-16 bg-[var(--muted)]/60 rounded-md" />
+          </div>
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+            {[...Array(7)].map((_, i) => (
+              <div key={i} className="flex flex-col items-center p-3 rounded-lg bg-[var(--secondary)]/50 border border-[var(--border)]/60 space-y-2">
+                <div className="h-3 w-6 bg-[var(--muted)] rounded" />
+                <div className="h-3 w-4 bg-[var(--muted)]/60 rounded" />
+                <div className="w-6 h-6 rounded-full bg-[var(--muted)]" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

@@ -3,8 +3,21 @@ import { Zap, IndianRupee, Clock, CheckCircle2, AlertTriangle, ShieldCheck, Refr
 import axios from 'axios';
 
 export default function ClaimsList() {
-  const [claims, setClaims] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [claims, setClaims] = useState(() => {
+    try {
+      const cached = localStorage.getItem('gig_claims_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('gig_claims_cache');
+    } catch {
+      return true;
+    }
+  });
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
@@ -27,7 +40,7 @@ export default function ClaimsList() {
   const fetchMyClaims = async (pageNum = 1, isLoadMore = false) => {
     if (isLoadMore) {
       setLoadingMore(true);
-    } else {
+    } else if (claims.length === 0) {
       setLoading(true);
     }
     try {
@@ -37,9 +50,14 @@ export default function ClaimsList() {
       const moreAvailable = res.data.hasMore ?? (newClaims.length === 5);
 
       if (isLoadMore) {
-        setClaims(prev => [...prev, ...newClaims]);
+        setClaims(prev => {
+          const updated = [...prev, ...newClaims];
+          try { localStorage.setItem('gig_claims_cache', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        });
       } else {
         setClaims(newClaims);
+        try { localStorage.setItem('gig_claims_cache', JSON.stringify(newClaims)); } catch (e) {}
       }
 
       setPage(pageNum);
@@ -91,11 +109,27 @@ export default function ClaimsList() {
     }
   };
 
-  if (loading) {
+  if (loading && claims.length === 0) {
     return (
-      <div className="p-6 text-center glass-panel rounded-[var(--radius)]">
-        <RefreshCw className="w-5 h-5 text-[var(--primary)] animate-spin mx-auto mb-2" />
-        <span className="text-xs text-[var(--muted-foreground)]">Loading your parametric claims...</span>
+      <div className="p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md space-y-3 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="h-4 w-36 bg-[var(--muted)] rounded-md" />
+          <div className="h-3 w-20 bg-[var(--muted)]/60 rounded-md" />
+        </div>
+        <div className="space-y-2 pt-1">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="p-3.5 rounded-lg bg-[var(--secondary)]/40 border border-[var(--border)]/60 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-[var(--muted)] shrink-0" />
+                <div className="space-y-1.5">
+                  <div className="h-3.5 w-32 bg-[var(--muted)] rounded" />
+                  <div className="h-2.5 w-48 bg-[var(--muted)]/60 rounded" />
+                </div>
+              </div>
+              <div className="h-5 w-16 bg-[var(--muted)] rounded-full shrink-0" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
