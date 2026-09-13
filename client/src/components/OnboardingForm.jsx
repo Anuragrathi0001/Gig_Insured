@@ -200,12 +200,15 @@ export default function OnboardingForm({ onComplete, initialStep = 1, onStepChan
   const handleQuickUpiSuffix = (suffix) => {
     setFormData(prev => {
       const current = prev.upiId.trim();
-      const prefix = current.includes('@') ? current.split('@')[0] : current;
-      return { ...prev, upiId: prefix ? `${prefix}${suffix}` : `${suffix}` };
+      const prefix = current.includes('@') ? current.split('@')[0].trim() : current.trim();
+      if (!prefix) return prev; // Do not append suffix unless non-empty prefix exists
+      return { ...prev, upiId: `${prefix}${suffix}` };
     });
   };
 
-  const isUpiValid = formData.upiId.trim().includes('@') && formData.upiId.trim().length >= 4;
+  const upiTrimmed = formData.upiId.trim();
+  const upiParts = upiTrimmed.split('@');
+  const isUpiValid = upiParts.length === 2 && upiParts[0].length >= 2 && upiParts[1].length >= 2;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -213,8 +216,8 @@ export default function OnboardingForm({ onComplete, initialStep = 1, onStepChan
 
     if (!formData.name.trim()) { setError('Please enter your full name as on your Govt ID'); return; }
     if (!formData.workerId.trim()) { setError('Please enter your Delivery Partner Worker ID'); return; }
-    if (!formData.upiId.trim() || !formData.upiId.includes('@')) {
-      setError('Please enter a valid UPI ID (e.g. 9876543210@paytm or name@okaxis)'); return;
+    if (!isUpiValid) {
+      setError('Please enter a valid UPI ID with a handle and provider (e.g. 9876543210@paytm or name@okaxis)'); return;
     }
 
     setLoading(true);

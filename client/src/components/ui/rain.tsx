@@ -1,7 +1,9 @@
 "use client"
 
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
+
+const DEFAULT_DROP_SIZE = { min: 1, max: 3 }
 
 export function Component() {
   return (
@@ -69,7 +71,7 @@ export function RainBackground({
   speed = 1,
   color = "rgba(174, 194, 224, 0.6)",
   angle = 0,
-  dropSize = { min: 1, max: 3 },
+  dropSize = DEFAULT_DROP_SIZE,
   lightningEnabled = false,
   lightningFrequency = 8,
   thunderEnabled = false,
@@ -98,6 +100,8 @@ export function RainBackground({
   // Generate raindrops
   useEffect(() => {
     const drops: RainDrop[] = []
+    const minSize = dropSize?.min ?? 1
+    const maxSize = dropSize?.max ?? 3
 
     for (let i = 0; i < intensity; i++) {
       drops.push({
@@ -105,13 +109,13 @@ export function RainBackground({
         left: Math.random() * 100,
         animationDuration: (Math.random() * 1 + 0.5) / speed,
         opacity: Math.random() * 0.6 + 0.2,
-        size: Math.random() * (dropSize.max - dropSize.min) + dropSize.min,
+        size: Math.random() * (maxSize - minSize) + minSize,
         delay: Math.random() * 2,
       })
     }
 
     setRaindrops(drops)
-  }, [intensity, speed, dropSize])
+  }, [intensity, speed, dropSize?.min, dropSize?.max])
 
   // Lightning effect
   const triggerLightning = useCallback(() => {
@@ -292,7 +296,7 @@ export function ThunderAudio({ volume, onPlay }: ThunderAudioProps) {
     }
   }, [])
 
-  const generateThunderSound = async () => {
+  const generateThunderSound = useCallback(async () => {
     if (!audioContextRef.current) return
 
     const audioContext = audioContextRef.current
@@ -328,11 +332,11 @@ export function ThunderAudio({ volume, onPlay }: ThunderAudioProps) {
 
     source.start()
     onPlay?.()
-  }
+  }, [volume, onPlay])
 
-  return {
+  return useMemo(() => ({
     playThunder: generateThunderSound,
-  }
+  }), [generateThunderSound])
 }
 
 export default RainBackground;

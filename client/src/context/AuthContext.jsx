@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import axios from 'axios';
 import { auth, googleProvider } from '../config/firebase';
 import { signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
+import { checkIsAdmin } from '../constants/admins';
 
 // Configure global Axios interceptor immediately at module level so mount requests never miss auth headers
 axios.interceptors.request.use(
@@ -167,6 +168,10 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   };
 
+  const isAdmin = useMemo(() => {
+    return checkIsAdmin(worker, firebaseUser);
+  }, [worker, firebaseUser]);
+
   const value = useMemo(
     () => ({
       token,
@@ -175,11 +180,12 @@ export const AuthProvider = ({ children }) => {
       loading,
       error,
       isAuthenticated: Boolean(token && worker),
+      isAdmin,
       loginWithGoogle,
       logout,
       setWorker
     }),
-    [token, worker, firebaseUser, loading, error]
+    [token, worker, firebaseUser, loading, error, isAdmin]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

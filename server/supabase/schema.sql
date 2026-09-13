@@ -155,3 +155,30 @@ insert into zone_configs (zone_name, city, trigger_thresholds, premium_band) val
   ('HSR Layout',     'Bengaluru', '{"rainMmPerHour":20,"heatTempCelsius":40,"aqiThreshold":280,"floodWaterLevelCm":10}', '{"Basic":28,"Standard":48,"Premium":80}'),
   ('Electronic City','Bengaluru', '{"rainMmPerHour":30,"heatTempCelsius":42,"aqiThreshold":350,"floodWaterLevelCm":15}', '{"Basic":30,"Standard":50,"Premium":85}')
 on conflict (zone_name) do nothing;
+
+-- ─────────────────────────────────────────────
+-- 7. MIGRATIONS FOR EXISTING DEPLOYMENTS
+-- ─────────────────────────────────────────────
+-- Update workers platform check constraint to include 'Other'
+do $$
+begin
+  alter table workers drop constraint if exists workers_platform_check;
+  alter table workers add constraint workers_platform_check check (platform in ('Zomato', 'Swiggy', 'Other'));
+exception
+  when undefined_table then null;
+  when others then null;
+end $$;
+
+-- Ensure role column exists on workers table
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_name = 'workers' and column_name = 'role'
+  ) then
+    alter table workers add column role text not null default 'worker' check (role in ('worker', 'admin'));
+  end if;
+exception
+  when undefined_table then null;
+  when others then null;
+end $$;

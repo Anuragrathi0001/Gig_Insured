@@ -14,7 +14,7 @@ if (!isProd) {
   const currentHost = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
     ? window.location.hostname
     : 'localhost';
-  backendUrl = envUrl ? envUrl.replace('localhost', currentHost) : `http://${currentHost}:5001`;
+  backendUrl = envUrl ? envUrl.replace('localhost', currentHost) : `http://${currentHost}:5000`;
 } else if (envUrl && !envUrl.includes('localhost')) {
   backendUrl = envUrl;
 }

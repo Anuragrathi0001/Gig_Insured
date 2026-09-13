@@ -120,7 +120,7 @@ const getDisruptionHoursLost = (disruptionType) => {
  * Calculate worker's total payouts disbursed in current week
  */
 const getWorkerWeeklyPayoutsTotal = async (workerId) => {
-  if (process.env.SUPABASE_URL) {
+  if (supabase) {
     const startOfWeek = new Date();
     const day = startOfWeek.getDay();
     const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
@@ -156,7 +156,7 @@ const autoCreateClaimsForTrigger = async (triggerEvent) => {
     const hoursLost = getDisruptionHoursLost(triggerEvent.disruption_type || triggerEvent.disruptionType);
     const createdClaims = [];
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       // Fetch all active policies with their related workers
       const { data: activePolicies } = await supabase
         .from('policies')
@@ -381,7 +381,7 @@ const getMyClaims = async (req, res) => {
     let claims = [];
     let total = 0;
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { count: totalCount, error: countErr } = await supabase
         .from('claims')
         .select('*', { count: 'exact', head: true })
@@ -402,13 +402,12 @@ const getMyClaims = async (req, res) => {
       claims = data || [];
     } else {
       const allWorkerClaims = mockClaimsStore.filter(c =>
-        c.worker_id === req.worker.id ||
-        c.workerMobile === req.worker.mobile ||
-        c.worker_id === req.worker.worker_id
+        (req.worker.id && c.worker_id === req.worker.id) ||
+        (req.worker.mobile && c.workerMobile === req.worker.mobile) ||
+        (req.worker.worker_id && c.worker_id === req.worker.worker_id)
       );
-      const filtered = allWorkerClaims.length > 0 ? allWorkerClaims : mockClaimsStore;
-      total = filtered.length;
-      claims = filtered.slice(offset, offset + limit);
+      total = allWorkerClaims.length;
+      claims = allWorkerClaims.slice(offset, offset + limit);
     }
 
     const totalPages = Math.ceil(total / limit);
@@ -447,7 +446,7 @@ const verifyPayoutOtp = async (req, res) => {
 
     let claim = null;
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data } = await supabase
         .from('claims')
         .select('*, workers(*)')
@@ -473,7 +472,7 @@ const verifyPayoutOtp = async (req, res) => {
     const newState = payoutRes.success ? 'Paid' : 'Payout-Failed';
     const transactionRef = payoutRes.transactionRef || null;
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data: updated } = await supabase
         .from('claims')
         .update({
@@ -514,7 +513,7 @@ const submitAppeal = async (req, res) => {
 
     let claim = null;
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data } = await supabase
         .from('claims')
         .select('*')
@@ -546,7 +545,7 @@ const submitAppeal = async (req, res) => {
 
     const updatedReason = `Worker Appeal (${new Date().toLocaleDateString('en-IN')}): ${appealStatement || 'Under Manual Admin Review'}`;
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data: updated } = await supabase
         .from('claims')
         .update({ claim_state: 'Appealed', reason: updatedReason })
@@ -579,7 +578,7 @@ const getAllClaims = async (req, res) => {
   try {
     let claims = [];
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data, error } = await supabase
         .from('claims')
         .select('*, workers(*), trigger_events(*)')

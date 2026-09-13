@@ -20,7 +20,7 @@ import LogoutModal from './LogoutModal';
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { worker, firebaseUser, isAuthenticated, loginWithGoogle, logout, loading } = useAuth();
+  const { worker, firebaseUser, isAuthenticated, isAdmin, loginWithGoogle, logout, loading } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -249,9 +249,14 @@ export default function Navbar() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <p className="text-sm font-bold text-[var(--foreground)] truncate">{worker?.name || 'Worker'}</p>
                         <CheckCircle2 className="w-3.5 h-3.5 text-[var(--primary)] shrink-0" />
+                        {isAdmin && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                            Admin
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-[var(--muted-foreground)] truncate">{worker?.email || 'Verified Partner'}</p>
                     </div>
@@ -308,27 +313,29 @@ export default function Navbar() {
                   )}
                 </button>
 
-                {/* Admin Portal */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigate('/admin');
-                    setMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-[var(--muted)]/80 text-left cursor-pointer ${
-                    location.pathname === '/admin' ? 'text-amber-600 dark:text-amber-400 font-bold bg-amber-500/5' : 'text-[var(--foreground)]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <LayoutDashboard className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span>Admin Portal</span>
-                  </div>
-                  {location.pathname === '/admin' && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-bold">
-                      Current
-                    </span>
-                  )}
-                </button>
+                {/* Admin Portal - Only visible for authorized Admin Gmail accounts */}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate('/admin');
+                      setMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-[var(--muted)]/80 text-left cursor-pointer ${
+                      location.pathname === '/admin' ? 'text-amber-600 dark:text-amber-400 font-bold bg-amber-500/5' : 'text-[var(--foreground)]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <LayoutDashboard className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>Admin Portal</span>
+                    </div>
+                    {location.pathname === '/admin' && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-bold">
+                        Current
+                      </span>
+                    )}
+                  </button>
+                )}
               </div>
 
               <div className="my-1.5 border-t border-[var(--border)]" />

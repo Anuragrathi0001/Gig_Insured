@@ -240,8 +240,9 @@ export default function AdminDashboard() {
     if (!updated) return;
 
     try {
+      const baseThresholds = zone.trigger_thresholds || zone.triggerThresholds || {};
       const newThresholds = {
-        ...zone.triggerThresholds,
+        ...baseThresholds,
         ...updated
       };
       await axios.put(`/api/admin/zones/${zoneId}`, { triggerThresholds: newThresholds });
@@ -817,7 +818,7 @@ export default function AdminDashboard() {
               {zones.map((z, idx) => {
                 const zoneId = z.id || z._id || `zone_${idx}`;
                 const live = z.liveWeather || {};
-                const thresholds = z.triggerThresholds || {};
+                const thresholds = z.trigger_thresholds || z.triggerThresholds || {};
                 return (
                   <div key={zoneId} className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
@@ -890,7 +891,7 @@ export default function AdminDashboard() {
                   {zones.map((z, idx) => {
                     const zoneId = z.id || z._id || `zone_${idx}`;
                     const live = z.liveWeather || {};
-                    const thresholds = z.triggerThresholds || {};
+                    const thresholds = z.trigger_thresholds || z.triggerThresholds || {};
                     return (
                       <tr key={zoneId} className="hover:bg-[var(--secondary)]/40 transition-colors">
                         <td className="px-4 py-3">

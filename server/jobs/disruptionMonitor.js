@@ -22,7 +22,7 @@ const evaluateDisruptions = async (bypassObservationWindow = false) => {
   try {
     let zones = [];
 
-    if (process.env.SUPABASE_URL) {
+    if (supabase) {
       const { data, error } = await supabase.from('zone_configs').select('*');
       if (error) throw new Error(error.message);
       zones = data || [];
@@ -101,7 +101,7 @@ const evaluateDisruptions = async (bypassObservationWindow = false) => {
 
         let triggerDoc = null;
 
-        if (process.env.SUPABASE_URL) {
+        if (supabase) {
           const { data: inserted, error } = await supabase
             .from('trigger_events')
             .insert(triggerPayload)
