@@ -3,6 +3,20 @@ import axios from 'axios';
 import { auth, googleProvider } from '../config/firebase';
 import { signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
 
+// Configure global Axios interceptor immediately at module level so mount requests never miss auth headers
+axios.interceptors.request.use(
+  (config) => {
+    try {
+      const activeToken = localStorage.getItem('gig_token');
+      if (activeToken && !config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${activeToken}`;
+      }
+    } catch (e) {}
+    return config;
+  },
+  (err) => Promise.reject(err)
+);
+
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -36,24 +50,6 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('gig_worker');
     }
   };
-
-  // Configure global Axios interceptor for JWT authorization header
-  useEffect(() => {
-    const requestInterceptor = axios.interceptors.request.use(
-      (config) => {
-        const activeToken = token || localStorage.getItem('gig_token');
-        if (activeToken) {
-          config.headers.Authorization = `Bearer ${activeToken}`;
-        }
-        return config;
-      },
-      (err) => Promise.reject(err)
-    );
-
-    return () => {
-      axios.interceptors.request.eject(requestInterceptor);
-    };
-  }, [token]);
 
   // Listen to Firebase Auth state changes and restore session on page reload
   useEffect(() => {

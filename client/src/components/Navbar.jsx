@@ -1,103 +1,97 @@
-import React, { useState, useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import {
-  Shield, LayoutDashboard, UserCheck, LogOut, CheckCircle2,
-  RefreshCw, Sun, Moon, Menu, X
+  Settings,
+  UserCheck,
+  LayoutDashboard,
+  Sun,
+  Moon,
+  LogOut,
+  CheckCircle2,
+  RefreshCw,
+  ChevronRight,
+  Edit3
 } from 'lucide-react';
+import LogoutModal from './LogoutModal';
 
-/* ── Logout Confirmation Modal ─────────────────────────────────────────── */
-function LogoutModal({ workerName, onConfirm, onCancel }) {
-  useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onCancel(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onCancel]);
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
-      onClick={onCancel}
-    >
-      <div
-        className="relative w-full max-w-sm rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] shadow-2xl p-6 flex flex-col gap-5"
-        style={{ animation: 'logoutModalIn 0.2s cubic-bezier(.4,0,.2,1)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-center">
-          <div className="w-14 h-14 rounded-full bg-[var(--destructive)]/10 flex items-center justify-center border border-[var(--destructive)]/20">
-            <LogOut className="w-6 h-6 text-[var(--destructive)]" />
-          </div>
-        </div>
-        <div className="text-center space-y-1.5">
-          <h2 className="text-base font-bold text-[var(--foreground)] font-sans">Sign out of Gig Insured?</h2>
-          <p className="text-sm text-[var(--muted-foreground)] font-sans">
-            Hey <span className="font-semibold text-[var(--foreground)]">{workerName || 'there'}</span>, you'll need to sign in again to access your dashboard and policies.
-          </p>
-        </div>
-        <div className="flex gap-3 mt-1">
-          <button
-            onClick={onCancel}
-            className="flex-1 px-4 py-3 rounded-[calc(var(--radius)*0.6)] border border-[var(--border)] bg-[var(--secondary)]/40 text-[var(--foreground)] font-semibold text-sm hover:bg-[var(--secondary)] transition-all active:scale-95"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 px-4 py-3 rounded-[calc(var(--radius)*0.6)] bg-[var(--destructive)] text-white font-bold text-sm hover:brightness-110 transition-all active:scale-95 shadow-sm"
-          >
-            Yes, Sign Out
-          </button>
-        </div>
-      </div>
-      <style>{`
-        @keyframes logoutModalIn {
-          from { opacity: 0; transform: scale(0.95) translateY(12px); }
-          to   { opacity: 1; transform: scale(1)    translateY(0); }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-/* ── Navbar ─────────────────────────────────────────────────────────────── */
 export default function Navbar() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { worker, firebaseUser, isAuthenticated, loginWithGoogle, logout, loading } = useAuth();
-  const [googleLoading, setGoogleLoading] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
+
+  const [menuOpen, setMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) return savedTheme === 'dark';
-      return document.documentElement.classList.contains('dark');
-    }
-    return true;
-  });
+  const [googleLoading, setGoogleLoading] = useState(false);
 
+  const menuRef = useRef(null);
+  const triggerRef = useRef(null);
+
+  const handleEditProfile = () => {
+    setMenuOpen(false);
+    navigate('/?editProfile=true');
+    window.dispatchEvent(new CustomEvent('open-edit-profile'));
+  };
+
+  // Close menu on route navigation
   useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDark]);
+    setMenuOpen(false);
+  }, [location.pathname]);
 
-  // Close mobile menu on route change
+  // Handle click outside and Escape key
   useEffect(() => {
-    setMobileMenuOpen(false);
-  }, []);
+    if (!menuOpen) return;
 
-  const toggleTheme = () => setIsDark(prev => !prev);
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+
+    const handleClickOutside = (e) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(e.target)
+      ) {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen]);
+
+  // Lock background scroll when Settings tab is open
+  useEffect(() => {
+    if (!menuOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+    };
+  }, [menuOpen]);
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
-    setMobileMenuOpen(false);
     try {
       await loginWithGoogle();
+      setMenuOpen(false);
     } catch (err) {
       console.error('Navbar Google sign-in failed:', err);
     } finally {
@@ -105,9 +99,11 @@ export default function Navbar() {
     }
   };
 
-  const handleLogoutClick = () => { setShowLogoutModal(true); setMobileMenuOpen(false); };
-  const handleLogoutConfirm = async () => { setShowLogoutModal(false); await logout(); };
-  const handleLogoutCancel = () => setShowLogoutModal(false);
+  const handleLogoutConfirm = async () => {
+    setShowLogoutModal(false);
+    await logout();
+    navigate('/', { replace: true });
+  };
 
   return (
     <>
@@ -115,19 +111,21 @@ export default function Navbar() {
         <LogoutModal
           workerName={worker?.name?.split(' ')[0]}
           onConfirm={handleLogoutConfirm}
-          onCancel={handleLogoutCancel}
+          onCancel={() => setShowLogoutModal(false)}
         />
       )}
 
-      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-md shadow-sm transition-colors duration-200">
+      <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-md shadow-sm transition-colors duration-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
 
-            {/* ── Logo ── */}
-            <NavLink to="/" className="flex items-center gap-2 group shrink-0" onClick={() => setMobileMenuOpen(false)}>
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-[calc(var(--radius)*0.6)] bg-[var(--primary)] text-[var(--primary-foreground)] flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-200">
-                <Shield className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
-              </div>
+            {/* ── Brand Logo ── */}
+            <NavLink to="/" className="flex items-center gap-2 sm:gap-2.5 shrink-0" onClick={() => setMenuOpen(false)}>
+              <img
+                src="/logo.png"
+                alt="Gig Insured"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-[calc(var(--radius)*0.6)] object-cover shadow-sm ring-1 ring-black/5 dark:ring-white/10 shrink-0"
+              />
               <div>
                 <span className="text-base sm:text-lg font-extrabold tracking-tight text-[var(--foreground)] flex items-center gap-1.5 font-sans leading-none">
                   Gig Insured
@@ -141,81 +139,46 @@ export default function Navbar() {
               </div>
             </NavLink>
 
-            {/* ── Desktop Nav ── */}
-            <nav className="hidden md:flex items-center gap-1.5 lg:gap-2.5">
-              <NavLink
-                to="/"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-[calc(var(--radius)*0.5)] text-xs font-semibold transition-all duration-200 ${
-                    isActive
-                      ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 shadow-sm'
-                      : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]'
-                  }`
-                }
-              >
-                <UserCheck className="w-4 h-4" />
-                <span>Worker Portal</span>
-              </NavLink>
+            {/* ── Right Controls ── */}
+            <div ref={triggerRef} className="flex items-center gap-2 sm:gap-3">
 
-              <NavLink
-                to="/admin"
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-[calc(var(--radius)*0.5)] text-xs font-semibold transition-all duration-200 ${
-                    isActive
-                      ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 shadow-sm'
-                      : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]'
-                  }`
-                }
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                <span>Admin</span>
-              </NavLink>
-
-              {/* Theme Toggle */}
-              <button
-                onClick={toggleTheme}
-                aria-label="Toggle Theme"
-                className="p-2 rounded-[calc(var(--radius)*0.4)] bg-[var(--secondary)]/60 hover:bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] transition-all flex items-center justify-center shadow-sm active:scale-95"
-              >
-                {isDark ? <Sun className="w-4 h-4 text-amber-400 stroke-[2.5]" /> : <Moon className="w-4 h-4 text-[var(--accent)] stroke-[2.5]" />}
-              </button>
-
-              {/* Auth */}
+              {/* Profile Snippet (Clickable, opens YouTube-style menu) */}
               {isAuthenticated ? (
-                <div className="flex items-center gap-2 pl-2 border-l border-[var(--border)]">
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(prev => !prev)}
+                  title="Account & Settings"
+                  aria-expanded={menuOpen}
+                  className="flex items-center gap-2 px-1.5 py-1 sm:px-2 sm:py-1 rounded-[calc(var(--radius)*0.5)] hover:bg-[var(--muted)]/60 transition-colors cursor-pointer text-left"
+                >
                   {worker?.photo_url || firebaseUser?.photoURL ? (
                     <img
                       src={worker?.photo_url || firebaseUser?.photoURL}
                       alt={worker?.name || 'Worker'}
-                      className="w-8 h-8 rounded-full border border-[var(--primary)]/50 object-cover shadow-sm"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-[var(--primary)]/50 object-cover shadow-xs shrink-0"
                     />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30 flex items-center justify-center font-bold text-xs">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30 flex items-center justify-center font-bold text-xs shrink-0">
                       {worker?.name ? worker.name.charAt(0).toUpperCase() : 'W'}
                     </div>
                   )}
-                  <div className="hidden lg:flex flex-col text-left">
+                  <div className="hidden sm:flex flex-col text-left">
                     <div className="flex items-center gap-1">
-                      <span className="text-xs font-bold text-[var(--foreground)] max-w-[110px] truncate">{worker?.name || 'Worker'}</span>
-                      <CheckCircle2 className="w-3 h-3 text-[var(--primary)]" />
+                      <span className="text-xs font-bold text-[var(--foreground)] max-w-[120px] truncate">
+                        {worker?.name || 'Worker'}
+                      </span>
+                      <CheckCircle2 className="w-3 h-3 text-[var(--primary)] shrink-0" />
                     </div>
-                    <span className="text-[10px] text-[var(--muted-foreground)] font-medium truncate max-w-[110px]">
-                      {worker?.email || 'Google Verified'}
+                    <span className="text-[10px] text-[var(--muted-foreground)] font-medium truncate max-w-[120px]">
+                      {worker?.email || 'Verified Partner'}
                     </span>
                   </div>
-                  <button
-                    onClick={handleLogoutClick}
-                    title="Sign Out"
-                    className="p-2 rounded-[calc(var(--radius)*0.4)] bg-[var(--secondary)]/50 hover:bg-[var(--destructive)]/10 text-[var(--muted-foreground)] hover:text-[var(--destructive)] border border-[var(--border)] hover:border-[var(--destructive)]/30 transition-all active:scale-95"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </div>
+                </button>
               ) : (
                 <button
                   onClick={handleGoogleLogin}
                   disabled={googleLoading || loading}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-[calc(var(--radius)*0.6)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold text-xs shadow-md hover:brightness-110 transition-all border border-[var(--border)] disabled:opacity-50"
+                  className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-[calc(var(--radius)*0.6)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold text-xs shadow-sm hover:brightness-110 transition-all border border-[var(--border)] disabled:opacity-50 active:scale-95 cursor-pointer"
                 >
                   {googleLoading ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -227,139 +190,221 @@ export default function Navbar() {
                       <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
                     </svg>
                   )}
-                  <span>{googleLoading ? 'Signing in...' : 'Sign in'}</span>
+                  <span className="hidden xs:inline">{googleLoading ? 'Signing in...' : 'Sign in'}</span>
                 </button>
               )}
-            </nav>
 
-            {/* ── Mobile Right Controls ── */}
-            <div className="flex md:hidden items-center gap-2">
-              {/* Theme toggle visible on mobile */}
+              {/* ── Borderless Settings Logo Button (Toggles YouTube-style flyout menu) ── */}
               <button
-                onClick={toggleTheme}
-                aria-label="Toggle Theme"
-                className="p-2 rounded-[calc(var(--radius)*0.4)] bg-[var(--secondary)]/60 border border-[var(--border)] transition-all active:scale-95"
+                type="button"
+                onClick={() => setMenuOpen(prev => !prev)}
+                title="Settings & Controls"
+                aria-label="Settings"
+                aria-expanded={menuOpen}
+                className={`p-2 rounded-lg transition-colors active:scale-95 cursor-pointer ${
+                  menuOpen
+                    ? 'text-[var(--primary)] bg-[var(--primary)]/10'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]'
+                }`}
               >
-                {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-[var(--accent)]" />}
+                <Settings className="w-5 h-5" />
               </button>
 
-              {/* Avatar (if logged in) */}
-              {isAuthenticated && (
-                <div className="w-8 h-8 rounded-full overflow-hidden border border-[var(--primary)]/50 shrink-0">
-                  {worker?.photo_url || firebaseUser?.photoURL ? (
-                    <img src={worker?.photo_url || firebaseUser?.photoURL} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-[var(--primary)]/20 text-[var(--primary)] flex items-center justify-center font-bold text-xs">
-                      {worker?.name ? worker.name.charAt(0).toUpperCase() : 'W'}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Hamburger */}
-              <button
-                onClick={() => setMobileMenuOpen(prev => !prev)}
-                aria-label="Toggle Menu"
-                className="p-2 rounded-[calc(var(--radius)*0.4)] bg-[var(--secondary)]/60 border border-[var(--border)] transition-all active:scale-95"
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5 text-[var(--foreground)]" /> : <Menu className="w-5 h-5 text-[var(--foreground)]" />}
-              </button>
             </div>
           </div>
         </div>
 
-        {/* ── Mobile Dropdown Menu ── */}
-        {mobileMenuOpen && (
-          <div
-            className="md:hidden border-t border-[var(--border)] bg-[var(--card)] px-4 py-4 space-y-2"
-            style={{ animation: 'mobileMenuIn 0.18s ease' }}
-          >
-            {/* Worker info strip */}
-            {isAuthenticated && worker && (
-              <div className="flex items-center gap-3 p-3 rounded-[calc(var(--radius)*0.6)] bg-[var(--muted)] mb-3">
-                <div className="w-10 h-10 rounded-full overflow-hidden border border-[var(--primary)]/40 shrink-0">
-                  {worker?.photo_url || firebaseUser?.photoURL ? (
-                    <img src={worker?.photo_url || firebaseUser?.photoURL} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-[var(--primary)]/20 text-[var(--primary)] flex items-center justify-center font-bold">
-                      {worker.name?.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-bold text-[var(--foreground)] truncate">{worker.name}</p>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[var(--primary)] shrink-0" />
-                  </div>
-                  <p className="text-[11px] text-[var(--muted-foreground)] truncate">{worker.email}</p>
-                </div>
-              </div>
-            )}
+        {/* ── Settings Flyout Menu (Rendered via Portal so blur covers the whole UI) ── */}
+        {menuOpen && typeof document !== 'undefined' && createPortal(
+          <>
+            {/* Fullscreen Backdrop with light blur over entire page UI */}
+            <div
+              className="fixed inset-0 z-[80] bg-black/30 dark:bg-black/55 transition-all duration-200 cursor-pointer"
+              style={{
+                animation: 'backdropFadeIn 0.16s ease-out',
+                WebkitBackdropFilter: 'blur(5px)',
+                backdropFilter: 'blur(5px)',
+              }}
+              onClick={() => setMenuOpen(false)}
+              aria-hidden="true"
+            />
 
-            <NavLink
-              to="/"
-              onClick={() => setMobileMenuOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-[calc(var(--radius)*0.6)] text-sm font-semibold transition-all ${
-                  isActive
-                    ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30'
-                    : 'text-[var(--foreground)] hover:bg-[var(--muted)]'
-                }`
-              }
+            {/* Floating Menu Window (Right-anchored like YouTube) */}
+            <div
+              ref={menuRef}
+              style={{ animation: 'youtubeMenuIn 0.16s cubic-bezier(0.16, 1, 0.3, 1)' }}
+              className="fixed top-14 sm:top-16 right-3 sm:right-6 z-[90] w-72 sm:w-80 max-w-[calc(100vw-24px)] rounded-2xl border border-[var(--border)] bg-[var(--card)]/98 backdrop-blur-2xl shadow-2xl py-2 select-none overflow-hidden"
             >
-              <UserCheck className="w-4 h-4" />
-              <span>Worker Portal</span>
-            </NavLink>
-
-            <NavLink
-              to="/admin"
-              onClick={() => setMobileMenuOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-[calc(var(--radius)*0.6)] text-sm font-semibold transition-all ${
-                  isActive
-                    ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30'
-                    : 'text-[var(--foreground)] hover:bg-[var(--muted)]'
-                }`
-              }
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              <span>Admin Dashboard</span>
-            </NavLink>
-
-            <div className="pt-2 border-t border-[var(--border)]">
+              {/* Profile Header Block */}
               {isAuthenticated ? (
-                <button
-                  onClick={handleLogoutClick}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-[calc(var(--radius)*0.6)] text-sm font-semibold text-[var(--destructive)] hover:bg-[var(--destructive)]/10 border border-[var(--destructive)]/20 transition-all"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Sign Out</span>
-                </button>
+                <div className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-[var(--primary)]/40 shrink-0 shadow-xs">
+                      {worker?.photo_url || firebaseUser?.photoURL ? (
+                        <img src={worker?.photo_url || firebaseUser?.photoURL} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-[var(--primary)]/20 text-[var(--primary)] flex items-center justify-center font-bold text-sm">
+                          {worker?.name ? worker.name.charAt(0).toUpperCase() : 'W'}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1">
+                        <p className="text-sm font-bold text-[var(--foreground)] truncate">{worker?.name || 'Worker'}</p>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[var(--primary)] shrink-0" />
+                      </div>
+                      <p className="text-xs text-[var(--muted-foreground)] truncate">{worker?.email || 'Verified Partner'}</p>
+                    </div>
+                  </div>
+                  {/* Edit Profile Button in Settings Tab */}
+                  <button
+                    type="button"
+                    onClick={handleEditProfile}
+                    className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/25 text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Edit Profile</span>
+                  </button>
+                </div>
               ) : (
-                <button
-                  onClick={handleGoogleLogin}
-                  disabled={googleLoading || loading}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-[calc(var(--radius)*0.6)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold text-sm shadow-md hover:brightness-110 transition-all disabled:opacity-50"
-                >
-                  {googleLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" />
-                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z" />
-                      <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z" />
-                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
-                    </svg>
-                  )}
-                  <span>{googleLoading ? 'Signing in...' : 'Continue with Google'}</span>
-                </button>
+                <div className="px-4 py-2.5 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-[var(--foreground)]">Guest Account</p>
+                    <p className="text-[11px] text-[var(--muted-foreground)]">Sign in for full coverage</p>
+                  </div>
+                  <button
+                    onClick={handleGoogleLogin}
+                    disabled={googleLoading || loading}
+                    className="px-2.5 py-1 rounded-[calc(var(--radius)*0.5)] bg-[var(--primary)] text-[var(--primary-foreground)] text-xs font-bold shadow-xs hover:brightness-110 active:scale-95 cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                </div>
               )}
+
+              <div className="my-1.5 border-t border-[var(--border)]" />
+
+              {/* ── Portals Navigation Section ── */}
+              <div className="py-1">
+                {/* Worker Portal */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate('/');
+                    setMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-[var(--muted)]/80 text-left cursor-pointer ${
+                    location.pathname === '/' ? 'text-[var(--primary)] font-bold bg-[var(--primary)]/5' : 'text-[var(--foreground)]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <UserCheck className="w-4 h-4 text-[var(--primary)] shrink-0" />
+                    <span>Worker Portal</span>
+                  </div>
+                  {location.pathname === '/' && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 font-bold">
+                      Current
+                    </span>
+                  )}
+                </button>
+
+                {/* Admin Portal */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate('/admin');
+                    setMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-[var(--muted)]/80 text-left cursor-pointer ${
+                    location.pathname === '/admin' ? 'text-amber-600 dark:text-amber-400 font-bold bg-amber-500/5' : 'text-[var(--foreground)]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <LayoutDashboard className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Admin Portal</span>
+                  </div>
+                  {location.pathname === '/admin' && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-bold">
+                      Current
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              <div className="my-1.5 border-t border-[var(--border)]" />
+
+              {/* ── Theme / Appearance Section (Like YouTube) ── */}
+              <div className="py-1">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/80 transition-colors text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    {isDark ? (
+                      <Moon className="w-4 h-4 text-[var(--primary)] shrink-0" />
+                    ) : (
+                      <Sun className="w-4 h-4 text-amber-500 shrink-0" />
+                    )}
+                    <span>Appearance: {isDark ? 'Dark theme' : 'Light theme'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-[var(--muted-foreground)] bg-[var(--secondary)]/80 px-2 py-0.5 rounded-md border border-[var(--border)]">
+                    <span>{isDark ? 'Dark' : 'Light'}</span>
+                  </div>
+                </button>
+              </div>
+
+              <div className="my-1.5 border-t border-[var(--border)]" />
+
+              {/* ── Sign Out / Login Section ── */}
+              <div className="py-1">
+                {isAuthenticated ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowLogoutModal(true);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-[var(--destructive)] hover:bg-[var(--destructive)]/10 transition-colors text-left cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4 shrink-0" />
+                    <span>Sign out</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    disabled={googleLoading || loading}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-[var(--primary)] hover:bg-[var(--primary)]/10 transition-colors text-left cursor-pointer"
+                  >
+                    <RefreshCw className={`w-4 h-4 shrink-0 ${googleLoading ? 'animate-spin' : ''}`} />
+                    <span>{googleLoading ? 'Connecting...' : 'Sign in with Google'}</span>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          </>,
+          document.body
         )}
 
         <style>{`
-          @keyframes mobileMenuIn {
-            from { opacity: 0; transform: translateY(-6px); }
-            to   { opacity: 1; transform: translateY(0); }
+          @keyframes backdropFadeIn {
+            from {
+              opacity: 0;
+            }
+            to {
+              opacity: 1;
+            }
+          }
+          @keyframes youtubeMenuIn {
+            from {
+              opacity: 0;
+              transform: scale(0.95) translateY(-6px);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1) translateY(0);
+            }
           }
         `}</style>
       </header>

@@ -4,6 +4,8 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
+const supabase = require('./config/supabase');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -17,7 +19,7 @@ app.get('/', (req, res) => {
   res.status(200).json({
     status: 'ok',
     service: 'Gig Insured Backend API',
-    database: process.env.SUPABASE_URL ? 'Supabase PostgreSQL' : 'In-Memory Fallback',
+    database: supabase ? 'Supabase PostgreSQL' : 'In-Memory Fallback',
     healthCheck: '/api/health'
   });
 });
@@ -29,7 +31,7 @@ app.get('/api/health', (req, res) => {
     message: 'Gig Insured API Server is running',
     timestamp: new Date().toISOString(),
     service: 'gig-insured-server',
-    database: process.env.SUPABASE_URL ? 'supabase' : 'in-memory'
+    database: supabase ? 'supabase' : 'in-memory'
   });
 });
 
@@ -59,9 +61,9 @@ disruptionMonitor.initCronJob();
 
 app.listen(PORT, () => {
   console.log(`[Server] Gig Insured backend listening on port ${PORT}`);
-  if (process.env.SUPABASE_URL) {
+  if (supabase) {
     console.log('[Server] Connected to Supabase (PostgreSQL)');
   } else {
-    console.log('[Server] SUPABASE_URL not set — running in in-memory fallback mode');
+    console.log('[Server] Running in in-memory fallback mode');
   }
 });

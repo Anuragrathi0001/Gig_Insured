@@ -29,7 +29,7 @@ const WorkerSchema = new mongoose.Schema(
     platform: {
       type: String,
       enum: {
-        values: ['Zomato', 'Swiggy'],
+        values: ['Zomato', 'Swiggy', 'Other'],
         message: '{VALUE} is not a supported gig platform'
       },
       required: [true, 'Gig platform is required']

@@ -30,35 +30,41 @@ const onboardWorker = async (req, res) => {
       avgWeeklyIncome: income
     });
 
-    let worker;
+    let worker = null;
 
-    if (process.env.SUPABASE_URL) {
-      const { data, error } = await supabase
-        .from('workers')
-        .update({
-          name: name.trim(),
-          city: city.trim(),
-          zone: zone.trim(),
-          platform,
-          worker_id: workerId.trim(),
-          avg_weekly_income: income,
-          upi_id: upiId.trim(),
-          kyc_status: 'verified',
-          zone_risk_score: riskProfile.zoneRiskScore,
-          weather_exposure_score: riskProfile.weatherExposureScore
-        })
-        .eq('id', req.worker.id)
-        .select()
-        .single();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('workers')
+          .update({
+            name: name.trim(),
+            city: city.trim(),
+            zone: zone.trim(),
+            platform,
+            worker_id: workerId.trim(),
+            avg_weekly_income: income,
+            upi_id: upiId.trim(),
+            kyc_status: 'in_progress',
+            zone_risk_score: riskProfile.zoneRiskScore,
+            weather_exposure_score: riskProfile.weatherExposureScore
+          })
+          .eq('id', req.worker.id)
+          .select()
+          .single();
 
-      if (error) {
-        console.error(`[Onboard Worker Error]: ${error.message}`);
-        throw new Error(error.message);
+        if (error) {
+          console.warn(`[Worker Controller]: Supabase update error (${error.message}), falling back to in-memory store.`);
+        } else {
+          worker = data;
+        }
+      } catch (sbErr) {
+        console.warn(`[Worker Controller]: Supabase update failed (${sbErr.message}), falling back to in-memory store.`);
       }
-      worker = data;
-    } else {
-      console.log('[Worker Controller]: Offline mode. Updating in-memory worker store.');
-      const existing = req.worker;
+    }
+
+    if (!worker) {
+      console.log('[Worker Controller]: Offline / In-Memory mode. Updating in-memory worker store.');
+      const existing = req.worker || {};
       worker = {
         ...existing,
         name: name.trim(),
@@ -66,21 +72,38 @@ const onboardWorker = async (req, res) => {
         zone: zone.trim(),
         platform,
         worker_id: workerId.trim(),
+        workerId: workerId.trim(),
         avg_weekly_income: income,
+        avgWeeklyIncome: income,
         upi_id: upiId.trim(),
-        kyc_status: 'verified',
+        upiId: upiId.trim(),
+        kyc_status: 'in_progress',
+        kycStatus: 'in_progress',
         zone_risk_score: riskProfile.zoneRiskScore,
+        zoneRiskScore: riskProfile.zoneRiskScore,
         weather_exposure_score: riskProfile.weatherExposureScore,
+        weatherExposureScore: riskProfile.weatherExposureScore,
         updated_at: new Date().toISOString()
       };
-      if (existing.mobile) {
-        mockWorkerStore.set(existing.mobile, worker);
+      if (existing.id) mockWorkerStore.set(existing.id, worker);
+      if (existing.mobile) mockWorkerStore.set(existing.mobile, worker);
+      if (existing.email) mockWorkerStore.set(existing.email, worker);
+    }
+
+    // Clear stale policy if re-onboarding so the user can experience all 3 steps smoothly
+    try {
+      const { mockPolicyStore } = require('./policyController');
+      if (mockPolicyStore) {
+        if (req.worker.id) mockPolicyStore.delete(req.worker.id.toString());
+        if (req.worker.mobile) mockPolicyStore.delete(req.worker.mobile);
       }
+    } catch (e) {
+      // ignore
     }
 
     return res.status(200).json({
       status: 'success',
-      message: 'Worker onboarding completed successfully',
+      message: 'Worker profile details saved and AI risk profile generated successfully',
       riskProfile,
       worker
     });
@@ -125,33 +148,39 @@ const getWorkerDashboard = async (req, res) => {
     let paidClaims = [];
     let fraudFlags = [];
 
-    if (process.env.SUPABASE_URL) {
-      const { data: policy } = await supabase
-        .from('policies')
-        .select('*')
-        .eq('worker_id', workerId)
-        .eq('status', 'Active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      activePolicy = policy || null;
-
-      const { data: claims } = await supabase
-        .from('claims')
-        .select('*')
-        .eq('worker_id', workerId)
-        .eq('claim_state', 'Paid');
-      paidClaims = claims || [];
-
-      if (paidClaims.length > 0) {
-        const claimIds = paidClaims.map(c => c.id);
-        const { data: flags } = await supabase
-          .from('fraud_flags')
+    if (supabase) {
+      try {
+        const { data: policy } = await supabase
+          .from('policies')
           .select('*')
-          .in('claim_id', claimIds);
-        fraudFlags = flags || [];
+          .eq('worker_id', workerId)
+          .eq('status', 'Active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        activePolicy = policy || null;
+
+        const { data: claims } = await supabase
+          .from('claims')
+          .select('*')
+          .eq('worker_id', workerId)
+          .eq('claim_state', 'Paid');
+        paidClaims = claims || [];
+
+        if (paidClaims.length > 0) {
+          const claimIds = paidClaims.map(c => c.id);
+          const { data: flags } = await supabase
+            .from('fraud_flags')
+            .select('*')
+            .in('claim_id', claimIds);
+          fraudFlags = flags || [];
+        }
+      } catch (err) {
+        console.warn('[Worker Dashboard]: Supabase query error, using in-memory store fallback:', err.message);
       }
-    } else {
+    }
+
+    if (!activePolicy && (!paidClaims || paidClaims.length === 0)) {
       activePolicy = mockPolicyStore.get(workerId) || mockPolicyStore.get(req.worker.mobile) || Array.from(mockPolicyStore.values())[0] || null;
       paidClaims = mockClaimsStore.filter(c => (c.worker_id === workerId || c.workerMobile === req.worker.mobile) && c.claim_state === 'Paid');
       fraudFlags = mockFraudFlagsStore;

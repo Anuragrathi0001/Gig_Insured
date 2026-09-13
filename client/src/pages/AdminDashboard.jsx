@@ -235,7 +235,8 @@ export default function AdminDashboard() {
   };
 
   const handleSaveThresholds = async (zone) => {
-    const updated = editingThresholds[zone._id];
+    const zoneId = zone.id || zone._id;
+    const updated = editingThresholds[zoneId];
     if (!updated) return;
 
     try {
@@ -243,7 +244,7 @@ export default function AdminDashboard() {
         ...zone.triggerThresholds,
         ...updated
       };
-      await axios.put(`/api/admin/zones/${zone._id}`, { triggerThresholds: newThresholds });
+      await axios.put(`/api/admin/zones/${zoneId}`, { triggerThresholds: newThresholds });
       fetchDashboardData();
     } catch (err) {
       console.error('Failed to update zone thresholds', err);
@@ -338,10 +339,10 @@ export default function AdminDashboard() {
                 simStep >= 2 ? 'bg-[var(--primary)]/20 border-[var(--primary)] text-[var(--primary)]' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
               }`}>2. Geo Polygon</div>
               <div className={`p-2 sm:p-2.5 rounded-[calc(var(--radius)*0.4)] border transition-all ${
-                simStep >= 3 ? 'bg-[var(--accent)]/20 border-[var(--accent)] text-[var(--accent)]' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
+                simStep >= 3 ? 'bg-amber-500/20 border-amber-500 text-amber-500' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
               }`}>3. Fraud Score</div>
               <div className={`p-2 sm:p-2.5 rounded-[calc(var(--radius)*0.4)] border transition-all ${
-                simStep >= 4 ? 'bg-[var(--chart-3)]/25 border-[var(--chart-3)] text-[var(--chart-3)]' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
+                simStep >= 4 ? 'bg-sky-500/20 border-sky-500 text-sky-400' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
               }`}>4. Claim Decision</div>
               <div className={`col-span-2 sm:col-span-1 p-2 sm:p-2.5 rounded-[calc(var(--radius)*0.4)] border transition-all ${
                 simStep >= 5 ? 'bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)] shadow-sm' : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)]/60'
@@ -383,10 +384,10 @@ export default function AdminDashboard() {
         <div className="p-4 sm:p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] sm:text-xs font-bold text-[var(--foreground)]/80">Payouts Disbursed</span>
-            <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--accent)] fill-[var(--accent)]" />
+            <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-500" />
           </div>
           <p className="text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">₹{financials?.totalPayoutsDisbursed || 0}</p>
-          <p className="text-[10px] sm:text-xs font-bold text-[var(--accent)] mt-1">Direct Razorpay UPI Transfers</p>
+          <p className="text-[10px] sm:text-xs font-bold text-amber-500 mt-1">Direct Razorpay UPI Transfers</p>
         </div>
 
         {/* Active Policies Breakdown Card */}
@@ -431,7 +432,7 @@ export default function AdminDashboard() {
                   f.heatLevel === 'CRITICAL_RISK'
                     ? 'bg-[var(--destructive)]/15 text-[var(--destructive)] border-[var(--destructive)]/40'
                     : f.heatLevel === 'HIGH_RISK'
-                    ? 'bg-[var(--accent)]/20 text-[var(--accent)] border-[var(--accent)]/40'
+                    ? 'bg-amber-500/15 text-amber-500 border-amber-500/40'
                     : 'bg-[var(--primary)]/15 text-[var(--primary)] border-[var(--primary)]/40'
                 }`}>
                   {f.predictedDisruptionProbability}%
@@ -471,7 +472,7 @@ export default function AdminDashboard() {
           {heatmap.map((h) => {
             const riskColors = {
               CRITICAL_RISK: 'bg-[var(--destructive)]/15 border-[var(--destructive)]/40 text-[var(--destructive)]',
-              HIGH_RISK: 'bg-[var(--accent)]/20 border-[var(--accent)]/40 text-[var(--accent)]',
+              HIGH_RISK: 'bg-amber-500/15 border-amber-500/40 text-amber-500',
               MODERATE_RISK: 'bg-[var(--secondary)] border-[var(--border)] text-[var(--foreground)]',
               LOW_RISK: 'bg-[var(--primary)]/15 border-[var(--primary)]/40 text-[var(--primary)]'
             };
@@ -517,10 +518,10 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 text-center">
           {[
             { emoji: '🌧️', label: 'Rain', value: claimsByDisruption?.rain || 0, color: 'text-[var(--primary)]' },
-            { emoji: '🔥', label: 'Heat', value: claimsByDisruption?.heat || 0, color: 'text-[var(--accent)]' },
+            { emoji: '🔥', label: 'Heat', value: claimsByDisruption?.heat || 0, color: 'text-amber-500' },
             { emoji: '😷', label: 'AQI', value: claimsByDisruption?.aqi || 0, color: 'text-[var(--destructive)]' },
             { emoji: '🌊', label: 'Flood', value: claimsByDisruption?.flood || 0, color: 'text-[var(--primary)]' },
-            { emoji: '🚨', label: 'Curfew', value: claimsByDisruption?.curfew || 0, color: 'text-[var(--accent)]', fullWidth: true },
+            { emoji: '🚨', label: 'Curfew', value: claimsByDisruption?.curfew || 0, color: 'text-[var(--destructive)]', fullWidth: true },
           ].map(({ emoji, label, value, color, fullWidth }) => (
             <div
               key={label}
@@ -554,7 +555,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-2">
           <button
             onClick={() => handleSimulateFraud('normal')}
-            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 ${
+            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 cursor-pointer ${
               activeFraudScenario === 'normal'
                 ? 'bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)] shadow-sm'
                 : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)] hover:border-[var(--ring)]'
@@ -565,7 +566,7 @@ export default function AdminDashboard() {
 
           <button
             onClick={() => handleSimulateFraud('gps_spoofing')}
-            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 ${
+            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 cursor-pointer ${
               activeFraudScenario === 'gps_spoofing'
                 ? 'bg-[var(--destructive)] text-white border-[var(--destructive)] shadow-sm'
                 : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)] hover:border-[var(--destructive)]'
@@ -576,10 +577,10 @@ export default function AdminDashboard() {
 
           <button
             onClick={() => handleSimulateFraud('fake_weather')}
-            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 ${
+            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 cursor-pointer ${
               activeFraudScenario === 'fake_weather'
-                ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-sm'
-                : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)] hover:border-[var(--accent)]'
+                ? 'bg-[var(--destructive)] text-white border-[var(--destructive)] shadow-sm'
+                : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)] hover:border-[var(--destructive)]'
             }`}
           >
             🚴 Fake Weather Ride <span className="opacity-60">(+30)</span>
@@ -587,7 +588,7 @@ export default function AdminDashboard() {
 
           <button
             onClick={() => handleSimulateFraud('coordinated_ring')}
-            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 ${
+            className={`py-3 px-3 rounded-[calc(var(--radius)*0.5)] border text-xs font-bold transition-all active:scale-95 cursor-pointer ${
               activeFraudScenario === 'coordinated_ring'
                 ? 'bg-[var(--destructive)] text-white border-[var(--destructive)] shadow-sm'
                 : 'bg-[var(--input)] border-[var(--border)] text-[var(--foreground)] hover:border-[var(--destructive)]'
@@ -603,7 +604,7 @@ export default function AdminDashboard() {
         <div className="p-4 sm:p-5 border-b border-[var(--border)] flex items-start sm:items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
             <h3 className="text-sm sm:text-base font-bold text-[var(--foreground)] flex items-center gap-2 font-sans">
-              <ShieldAlert className="w-4 h-4 text-[var(--accent)] shrink-0" />
+              <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0" />
               <span>Fraud Review Queue
                 <span className="text-[10px] sm:text-xs font-semibold text-[var(--muted-foreground)] ml-1.5">(Score 31–100)</span>
               </span>
@@ -636,65 +637,72 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)] text-[var(--foreground)]">
-                {fraudQueue.map((c) => (
-                  <tr key={c._id} className="hover:bg-[var(--secondary)]/40 transition-colors">
-                    <td className="px-4 py-3 font-mono text-[11px]">
-                      <div className="font-bold text-[var(--foreground)]">{c._id}</div>
-                      <div className="text-[var(--foreground)]/75">{c.workerName || c.workerMobile || 'Worker'}</div>
-                    </td>
+                {fraudQueue.map((c, idx) => {
+                  const claimId = c.id || c._id || `claim_${idx}`;
+                  const fraudScore = c.fraud_risk_score ?? c.fraudRiskScore ?? 0;
+                  const claimState = c.claim_state || c.claimState || 'Under-Review';
+                  const payoutAmount = c.payout_amount ?? c.payoutAmount ?? 0;
 
-                    <td className="px-4 py-3 font-mono">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                        c.fraudRiskScore >= 71
-                          ? 'bg-[var(--destructive)]/15 text-[var(--destructive)] border border-[var(--destructive)]/40'
-                          : 'bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/40'
-                      }`}>
-                        {c.fraudRiskScore}/100
-                      </span>
-                    </td>
+                  return (
+                    <tr key={claimId} className="hover:bg-[var(--secondary)]/40 transition-colors">
+                      <td className="px-4 py-3 font-mono text-[11px]">
+                        <div className="font-bold text-[var(--foreground)]">{claimId}</div>
+                        <div className="text-[var(--foreground)]/75">{c.workerName || c.workerMobile || 'Worker'}</div>
+                      </td>
 
-                    <td className="px-4 py-3 font-extrabold uppercase text-[10px]">
-                      <span className={`px-2 py-0.5 rounded border ${
-                        c.claimState === 'Blocked'
-                          ? 'bg-[var(--destructive)]/15 text-[var(--destructive)] border-[var(--destructive)]/40'
-                          : 'bg-[var(--accent)]/15 text-[var(--accent)] border-[var(--accent)]/40'
-                      }`}>
-                        {c.claimState}
-                      </span>
-                    </td>
+                      <td className="px-4 py-3 font-mono">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
+                          fraudScore >= 71
+                            ? 'bg-[var(--destructive)]/15 text-[var(--destructive)] border border-[var(--destructive)]/40'
+                            : 'bg-amber-500/15 text-amber-500 border border-amber-500/40'
+                        }`}>
+                          {fraudScore}/100
+                        </span>
+                      </td>
 
-                    <td className="px-4 py-3 font-extrabold text-[var(--primary)] text-sm">
-                      ₹{c.payoutAmount}
-                    </td>
+                      <td className="px-4 py-3 font-extrabold uppercase text-[10px]">
+                        <span className={`px-2 py-0.5 rounded border ${
+                          claimState === 'Blocked'
+                            ? 'bg-[var(--destructive)]/15 text-[var(--destructive)] border-[var(--destructive)]/40'
+                            : 'bg-amber-500/15 text-amber-500 border-amber-500/40'
+                        }`}>
+                          {claimState}
+                        </span>
+                      </td>
 
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => setSelectedClaimEvidence(c)}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-[calc(var(--radius)*0.4)] bg-[var(--secondary)] hover:bg-[var(--secondary)]/80 text-[var(--secondary-foreground)] border border-[var(--border)] font-bold text-[11px] transition-colors"
-                      >
-                        <FileSearch className="w-3.5 h-3.5 text-[var(--primary)]" />
-                        <span>Inspect Evidence</span>
-                      </button>
-                    </td>
+                      <td className="px-4 py-3 font-extrabold text-[var(--primary)] text-sm">
+                        ₹{payoutAmount}
+                      </td>
 
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
+                      <td className="px-4 py-3">
                         <button
-                          onClick={() => handleResolveClaim(c._id, 'approve')}
-                          className="px-3 py-1 rounded-[calc(var(--radius)*0.4)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold hover:brightness-110 transition-all text-[11px]"
+                          onClick={() => setSelectedClaimEvidence(c)}
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-[calc(var(--radius)*0.4)] bg-[var(--secondary)] hover:bg-[var(--secondary)]/80 text-[var(--secondary-foreground)] border border-[var(--border)] font-bold text-[11px] transition-colors cursor-pointer"
                         >
-                          Approve
+                          <FileSearch className="w-3.5 h-3.5 text-[var(--primary)]" />
+                          <span>Inspect Evidence</span>
                         </button>
-                        <button
-                          onClick={() => handleResolveClaim(c._id, 'reject')}
-                          className="px-3 py-1 rounded-[calc(var(--radius)*0.4)] bg-[var(--destructive)]/20 hover:bg-[var(--destructive)]/30 text-[var(--destructive)] border border-[var(--destructive)]/40 font-bold transition-all text-[11px]"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleResolveClaim(claimId, 'approve')}
+                            className="px-3 py-1 rounded-[calc(var(--radius)*0.4)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold hover:brightness-110 transition-all text-[11px] cursor-pointer"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleResolveClaim(claimId, 'reject')}
+                            className="px-3 py-1 rounded-[calc(var(--radius)*0.4)] bg-[var(--destructive)]/20 hover:bg-[var(--destructive)]/30 text-[var(--destructive)] border border-[var(--destructive)]/40 font-bold transition-all text-[11px] cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -716,7 +724,7 @@ export default function AdminDashboard() {
               <FileSearch className="w-6 h-6 text-[var(--primary)]" />
               <div>
                 <h3 className="text-lg font-bold text-[var(--foreground)]">Telemetry & Fraud Risk Evidence Bundle</h3>
-                <p className="text-xs text-[var(--foreground)]/80">Claim ID: {selectedClaimEvidence._id} | Risk Score: <strong className="text-[var(--accent)]">{selectedClaimEvidence.fraudRiskScore}/100</strong></p>
+                <p className="text-xs text-[var(--foreground)]/80">Claim ID: {selectedClaimEvidence.id || selectedClaimEvidence._id} | Risk Score: <strong className={(selectedClaimEvidence.fraud_risk_score ?? selectedClaimEvidence.fraudRiskScore ?? 0) >= 71 ? "text-[var(--destructive)]" : "text-amber-500"}>{(selectedClaimEvidence.fraud_risk_score ?? selectedClaimEvidence.fraudRiskScore ?? 0)}/100</strong></p>
               </div>
             </div>
 
@@ -747,13 +755,13 @@ export default function AdminDashboard() {
 
               <div className="p-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)]">
                 <div className="font-bold text-[var(--foreground)] flex items-center gap-2 mb-1">
-                  <Smartphone className="w-4 h-4 text-[var(--accent)]" />
+                  <Smartphone className="w-4 h-4 text-purple-400" />
                   <span>Device Hardware Fingerprint</span>
                 </div>
                 <p className="text-[var(--foreground)]/85 font-mono text-[11px] leading-relaxed">
                   Fingerprint ID: {selectedClaimEvidence.evidence?.deviceEvidence?.fingerprintId}<br />
                   Duplicate Accounts: {selectedClaimEvidence.evidence?.deviceEvidence?.associatedWorkerAccounts} workers<br />
-                  Status: <strong className="text-[var(--accent)] font-bold">{selectedClaimEvidence.evidence?.deviceEvidence?.isDuplicateDevice ? 'DUPLICATE_DEVICE_FLAG' : 'UNIQUE'}</strong>
+                  Status: <strong className={`font-bold ${selectedClaimEvidence.evidence?.deviceEvidence?.isDuplicateDevice ? 'text-[var(--destructive)]' : 'text-emerald-500'}`}>{selectedClaimEvidence.evidence?.deviceEvidence?.isDuplicateDevice ? 'DUPLICATE_DEVICE_FLAG' : 'UNIQUE'}</strong>
                 </p>
               </div>
 
@@ -773,17 +781,17 @@ export default function AdminDashboard() {
             {/* Evidence modal action buttons — stack on mobile */}
             <div className="flex flex-col-reverse xs:flex-row items-stretch xs:items-center justify-end gap-2.5 pt-2">
               <button
-                onClick={() => handleResolveClaim(selectedClaimEvidence._id, 'reject')}
-                className="px-4 py-3 xs:py-2.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--destructive)]/20 hover:bg-[var(--destructive)]/30 text-[var(--destructive)] border border-[var(--destructive)]/40 font-extrabold text-xs transition-colors text-center"
+                onClick={() => handleResolveClaim(selectedClaimEvidence.id || selectedClaimEvidence._id, 'reject')}
+                className="px-4 py-3 xs:py-2.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--destructive)]/20 hover:bg-[var(--destructive)]/30 text-[var(--destructive)] border border-[var(--destructive)]/40 font-extrabold text-xs transition-colors text-center cursor-pointer"
               >
                 Reject &amp; Uphold Block
               </button>
 
               <button
-                onClick={() => handleResolveClaim(selectedClaimEvidence._id, 'approve')}
-                className="px-4 py-3 xs:py-2.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--primary)] text-[var(--primary-foreground)] font-extrabold text-xs shadow-md hover:brightness-110 transition-all text-center"
+                onClick={() => handleResolveClaim(selectedClaimEvidence.id || selectedClaimEvidence._id, 'approve')}
+                className="px-4 py-3 xs:py-2.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--primary)] text-[var(--primary-foreground)] font-extrabold text-xs shadow-md hover:brightness-110 transition-all text-center cursor-pointer"
               >
-                Approve &amp; Dispatch ₹{selectedClaimEvidence.payoutAmount}
+                Approve &amp; Dispatch ₹{selectedClaimEvidence.payout_amount ?? selectedClaimEvidence.payoutAmount ?? 0}
               </button>
             </div>
           </div>
@@ -806,11 +814,12 @@ export default function AdminDashboard() {
           <>
             {/* Mobile: stacked cards */}
             <div className="block sm:hidden divide-y divide-[var(--border)]">
-              {zones.map((z) => {
+              {zones.map((z, idx) => {
+                const zoneId = z.id || z._id || `zone_${idx}`;
                 const live = z.liveWeather || {};
                 const thresholds = z.triggerThresholds || {};
                 return (
-                  <div key={z._id} className="p-4 space-y-3">
+                  <div key={zoneId} className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-sm font-extrabold text-[var(--foreground)]">{z.zoneName}</div>
@@ -818,7 +827,7 @@ export default function AdminDashboard() {
                       </div>
                       <div className="text-[10px] font-mono font-bold text-right">
                         <div className="text-[var(--primary)]">🌧️ {live.rainMmPerHour || 0} mm/h</div>
-                        <div className="text-[var(--accent)]">🔥 {live.heatTempCelsius || 30}°C</div>
+                        <div className="text-amber-500">🔥 {live.heatTempCelsius || 30}°C</div>
                       </div>
                     </div>
 
@@ -827,8 +836,8 @@ export default function AdminDashboard() {
                         <label className="text-[9px] font-bold text-[var(--foreground)]/60 uppercase tracking-wide block mb-1">Rain (mm/h)</label>
                         <input
                           type="number"
-                          value={editingThresholds[z._id]?.rainMmPerHour ?? thresholds.rainMmPerHour}
-                          onChange={(e) => handleThresholdChange(z._id, 'rainMmPerHour', e.target.value)}
+                          value={editingThresholds[zoneId]?.rainMmPerHour ?? thresholds.rainMmPerHour}
+                          onChange={(e) => handleThresholdChange(zoneId, 'rainMmPerHour', e.target.value)}
                           className="w-full px-2 py-2 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:outline-none"
                         />
                       </div>
@@ -836,8 +845,8 @@ export default function AdminDashboard() {
                         <label className="text-[9px] font-bold text-[var(--foreground)]/60 uppercase tracking-wide block mb-1">Heat (°C)</label>
                         <input
                           type="number"
-                          value={editingThresholds[z._id]?.heatTempCelsius ?? thresholds.heatTempCelsius}
-                          onChange={(e) => handleThresholdChange(z._id, 'heatTempCelsius', e.target.value)}
+                          value={editingThresholds[zoneId]?.heatTempCelsius ?? thresholds.heatTempCelsius}
+                          onChange={(e) => handleThresholdChange(zoneId, 'heatTempCelsius', e.target.value)}
                           className="w-full px-2 py-2 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:outline-none"
                         />
                       </div>
@@ -845,8 +854,8 @@ export default function AdminDashboard() {
                         <label className="text-[9px] font-bold text-[var(--foreground)]/60 uppercase tracking-wide block mb-1">AQI</label>
                         <input
                           type="number"
-                          value={editingThresholds[z._id]?.aqiThreshold ?? thresholds.aqiThreshold}
-                          onChange={(e) => handleThresholdChange(z._id, 'aqiThreshold', e.target.value)}
+                          value={editingThresholds[zoneId]?.aqiThreshold ?? thresholds.aqiThreshold}
+                          onChange={(e) => handleThresholdChange(zoneId, 'aqiThreshold', e.target.value)}
                           className="w-full px-2 py-2 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:outline-none"
                         />
                       </div>
@@ -854,7 +863,7 @@ export default function AdminDashboard() {
 
                     <button
                       onClick={() => handleSaveThresholds(z)}
-                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-[calc(var(--radius)*0.4)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold text-xs hover:brightness-110 shadow-sm active:scale-95 transition-all"
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-[calc(var(--radius)*0.4)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold text-xs hover:brightness-110 shadow-sm active:scale-95 transition-all cursor-pointer"
                     >
                       <Save className="w-3.5 h-3.5" />
                       <span>Save Zone Thresholds</span>
@@ -878,47 +887,48 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border)] text-[var(--foreground)]">
-                  {zones.map((z) => {
+                  {zones.map((z, idx) => {
+                    const zoneId = z.id || z._id || `zone_${idx}`;
                     const live = z.liveWeather || {};
                     const thresholds = z.triggerThresholds || {};
                     return (
-                      <tr key={z._id} className="hover:bg-[var(--secondary)]/40 transition-colors">
+                      <tr key={zoneId} className="hover:bg-[var(--secondary)]/40 transition-colors">
                         <td className="px-4 py-3">
                           <div className="font-extrabold text-[var(--foreground)]">{z.zoneName}</div>
                           <div className="text-[11px] font-semibold text-[var(--foreground)]/75">{z.city}</div>
                         </td>
                         <td className="px-4 py-3 font-mono text-[11px] font-bold">
                           <span className="text-[var(--primary)]">🌧️ {live.rainMmPerHour || 0} mm/h</span> |{' '}
-                          <span className="text-[var(--accent)]">🔥 {live.heatTempCelsius || 30}°C</span>
+                          <span className="text-amber-500">🔥 {live.heatTempCelsius || 30}°C</span>
                         </td>
                         <td className="px-4 py-3">
                           <input
                             type="number"
-                            value={editingThresholds[z._id]?.rainMmPerHour ?? thresholds.rainMmPerHour}
-                            onChange={(e) => handleThresholdChange(z._id, 'rainMmPerHour', e.target.value)}
+                            value={editingThresholds[zoneId]?.rainMmPerHour ?? thresholds.rainMmPerHour}
+                            onChange={(e) => handleThresholdChange(zoneId, 'rainMmPerHour', e.target.value)}
                             className="w-16 px-2.5 py-1.5 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:ring-1 focus:ring-[var(--ring)] focus:outline-none"
                           />
                         </td>
                         <td className="px-4 py-3">
                           <input
                             type="number"
-                            value={editingThresholds[z._id]?.heatTempCelsius ?? thresholds.heatTempCelsius}
-                            onChange={(e) => handleThresholdChange(z._id, 'heatTempCelsius', e.target.value)}
+                            value={editingThresholds[zoneId]?.heatTempCelsius ?? thresholds.heatTempCelsius}
+                            onChange={(e) => handleThresholdChange(zoneId, 'heatTempCelsius', e.target.value)}
                             className="w-16 px-2.5 py-1.5 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:ring-1 focus:ring-[var(--ring)] focus:outline-none"
                           />
                         </td>
                         <td className="px-4 py-3">
                           <input
                             type="number"
-                            value={editingThresholds[z._id]?.aqiThreshold ?? thresholds.aqiThreshold}
-                            onChange={(e) => handleThresholdChange(z._id, 'aqiThreshold', e.target.value)}
+                            value={editingThresholds[zoneId]?.aqiThreshold ?? thresholds.aqiThreshold}
+                            onChange={(e) => handleThresholdChange(zoneId, 'aqiThreshold', e.target.value)}
                             className="w-16 px-2.5 py-1.5 bg-[var(--input)] border border-[var(--border)] rounded-[calc(var(--radius)*0.3)] text-[var(--foreground)] font-mono text-xs font-bold focus:border-[var(--ring)] focus:ring-1 focus:ring-[var(--ring)] focus:outline-none"
                           />
                         </td>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => handleSaveThresholds(z)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[calc(var(--radius)*0.3)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold transition-all text-xs hover:brightness-110 shadow-sm"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[calc(var(--radius)*0.3)] bg-[var(--primary)] text-[var(--primary-foreground)] font-bold transition-all text-xs hover:brightness-110 shadow-sm cursor-pointer"
                           >
                             <Save className="w-3.5 h-3.5" />
                             <span>Save</span>

@@ -1,97 +1,85 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --card: #fdfdfd;
-  --ring: #AFBEA5;
-  --input: #ebebeb;
-  --muted: #f5f5f5;
-  --accent: #495940;
-  --border: #e7e7ee;
-  --radius: 1.4rem;
-  --chart-1: oklch(0.648 0.2 131.684);
-  --chart-2: oklch(0.808 0.114 19.571);
-  --chart-3: #FFDA1A;
-  --chart-4: #0051BA;
-  --chart-5: oklch(0.709 0.01 56.259);
+  --card: #fcfcfc;
+  --ring: #644a40;
+  --input: #d8d8d8;
+  --muted: #efefef;
+  --accent: #e8e8e8;
+  --border: #d8d8d8;
+  --radius: 0.5rem;
+  --chart-1: #644a40;
+  --chart-2: #ffdfb5;
+  --chart-3: #e8e8e8;
+  --chart-4: #ffe6c4;
+  --chart-5: #66493e;
   --popover: #fcfcfc;
-  --primary: #7F956A;
-  --sidebar: #f5f8fb;
-  --spacing: 0.27rem;
+  --primary: #644a40;
+  --sidebar: #fbfbfb;
+  --secondary: #ffdfb5;
+  --background: #f9f9f9;
+  --foreground: #202020;
+  --destructive: #e54d2e;
+  --sidebar-ring: #b5b5b5;
+  --sidebar-accent: #f7f7f7;
+  --sidebar-border: #ebebeb;
+  --card-foreground: #202020;
+  --sidebar-primary: #343434;
+  --muted-foreground: #646464;
+  --accent-foreground: #202020;
+  --popover-foreground: #202020;
+  --primary-foreground: #ffffff;
+  --sidebar-foreground: #252525;
+  --secondary-foreground: #582d1d;
+  --destructive-foreground: #ffffff;
+  --sidebar-accent-foreground: #343434;
+  --sidebar-primary-foreground: #fbfbfb;
   --font-mono: 'IBM Plex Mono', monospace;
   --font-sans: 'Plus Jakarta Sans', sans-serif;
-  --secondary: #D4D9D0;
-  --background: #fdfdfd;
   --font-serif: 'Lora', serif;
-  --foreground: #000000;
-  --destructive: #b3191f;
-  --shadow-blur: 3px;
-  --shadow-color: #000000;
-  --sidebar-ring: #AFBEA5;
-  --shadow-spread: 0px;
   --letter-spacing: -0.025em;
-  --shadow-opacity: 0.16;
-  --sidebar-accent: #e4eae1;
-  --sidebar-border: #ebebeb;
-  --card-foreground: #000000;
-  --shadow-offset-x: 0px;
-  --shadow-offset-y: 2px;
-  --sidebar-primary: #000000;
-  --muted-foreground: #878787;
-  --accent-foreground: #FFFFFF;
-  --popover-foreground: #000000;
-  --primary-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-foreground: #000000;
-  --secondary-foreground: #080808;
-  --destructive-foreground: #ffffff;
-  --sidebar-accent-foreground: #000000;
-  --sidebar-primary-foreground: #ffffff;
 }
 
 .dark {
-  --card: #100d08;
-  --ring: #AFBEA5;
-  --input: #1a150e;
-  --muted: #1e1a14;
-  --accent: #495940;
-  --border: #2f281b;
-  --radius: 1.4rem;
-  --chart-1: #408a0f;
-  --chart-2: #59a626;
-  --chart-3: #73bd42;
-  --chart-4: #a9e382;
-  --chart-5: #AFBEA5;
-  --popover: #0b0905;
-  --primary: #AFBEA5;
-  --sidebar: #040302;
-  --spacing: 0.27rem;
+  --card: #191919;
+  --ring: #ffe0c2;
+  --input: #484848;
+  --muted: #222222;
+  --accent: #2a2a2a;
+  --border: #201e18;
+  --radius: 0.5rem;
+  --chart-1: #ffe0c2;
+  --chart-2: #393028;
+  --chart-3: #2a2a2a;
+  --chart-4: #42382e;
+  --chart-5: #ffe0c1;
+  --popover: #191919;
+  --primary: #ffe0c2;
+  --sidebar: #18181b;
+  --secondary: #393028;
+  --background: #111111;
+  --foreground: #eeeeee;
+  --destructive: #e54d2e;
+  --sidebar-ring: #d4d4d8;
+  --sidebar-accent: #27272a;
+  --sidebar-border: #27272a;
+  --card-foreground: #eeeeee;
+  --sidebar-primary: #1d4ed8;
+  --muted-foreground: #b4b4b4;
+  --accent-foreground: #eeeeee;
+  --popover-foreground: #eeeeee;
+  --primary-foreground: #081a1b;
+  --sidebar-foreground: #f4f4f5;
+  --secondary-foreground: #ffe0c2;
+  --destructive-foreground: #ffffff;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-primary-foreground: #ffffff;
   --font-mono: 'IBM Plex Mono', monospace;
   --font-sans: 'Plus Jakarta Sans', sans-serif;
-  --secondary: #26211a;
-  --background: #070503;
   --font-serif: 'Lora', serif;
-  --foreground: #f9f8f7;
-  --destructive: #b3191f;
-  --shadow-blur: 12px;
-  --shadow-color: #000000;
-  --sidebar-ring: #AFBEA5;
-  --shadow-spread: 0px;
   --letter-spacing: -0.025em;
-  --shadow-opacity: 0.35;
-  --sidebar-accent: #495940;
-  --sidebar-border: #272117;
-  --card-foreground: #f9f8f7;
-  --shadow-offset-x: 0px;
-  --shadow-offset-y: 2px;
-  --sidebar-primary: #AFBEA5;
-  --muted-foreground: #928f8a;
-  --accent-foreground: #FFF;
-  --popover-foreground: #f9f8f7;
-  --primary-foreground: #040302;
-  --sidebar-foreground: #f0eeeb;
-  --secondary-foreground: #e7e4df;
-  --destructive-foreground: #f9f8f7;
-  --sidebar-accent-foreground: #FFF;
-  --sidebar-primary-foreground: #040302;
 }
 
 @theme inline {
@@ -110,25 +98,14 @@
   --color-popover: var(--popover);
   --color-primary: var(--primary);
   --color-sidebar: var(--sidebar);
-  --color-spacing: var(--spacing);
-  --color-font-mono: var(--font-mono);
-  --color-font-sans: var(--font-sans);
   --color-secondary: var(--secondary);
   --color-background: var(--background);
-  --color-font-serif: var(--font-serif);
   --color-foreground: var(--foreground);
   --color-destructive: var(--destructive);
-  --color-shadow-blur: var(--shadow-blur);
-  --color-shadow-color: var(--shadow-color);
   --color-sidebar-ring: var(--sidebar-ring);
-  --color-shadow-spread: var(--shadow-spread);
-  --color-letter-spacing: var(--letter-spacing);
-  --color-shadow-opacity: var(--shadow-opacity);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-border: var(--sidebar-border);
   --color-card-foreground: var(--card-foreground);
-  --color-shadow-offset-x: var(--shadow-offset-x);
-  --color-shadow-offset-y: var(--shadow-offset-y);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent-foreground: var(--accent-foreground);
@@ -139,6 +116,9 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
 }
 
 @layer base {
@@ -224,4 +204,124 @@
 .theme-primary-btn:hover {
   filter: brightness(1.1);
   transform: translateY(-1px);
+}
+
+/* Rain & Lightning Component Animations */
+@keyframes rain-fall {
+  0% {
+    transform: translateY(-20px);
+  }
+  100% {
+    transform: translateY(calc(100vh + 20px));
+  }
+}
+
+@keyframes lightning-flash {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes lightning-bolt {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 0.7;
+  }
+  30% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  60% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-rain-fall {
+  animation: rain-fall linear infinite;
+}
+
+.animate-lightning-flash {
+  animation: lightning-flash ease-out forwards;
+}
+
+.animate-lightning-bolt {
+  animation: lightning-bolt ease-out forwards;
+}
+
+@keyframes fluidSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fluidPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scenario-switch {
+  animation: fluidSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-icon-pop {
+  animation: fluidPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes dotPatternDrift {
+  0% {
+    transform: translate(0px, 0px);
+  }
+  50% {
+    transform: translate(-12px, -12px);
+  }
+  100% {
+    transform: translate(0px, 0px);
+  }
+}
+
+.animate-dot-drift {
+  animation: dotPatternDrift 20s ease-in-out infinite;
 }

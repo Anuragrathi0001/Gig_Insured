@@ -34,20 +34,21 @@ const googleLogin = async (req, res) => {
     let worker = null;
     let isNewWorker = false;
 
-    if (process.env.SUPABASE_URL) {
-      // Look up existing worker by email
-      const { data: existing } = await supabase
-        .from('workers')
-        .select('*')
-        .eq('email', email)
-        .single();
+    if (supabase) {
+      try {
+        // Look up existing worker by email
+        const { data: existing } = await supabase
+          .from('workers')
+          .select('*')
+          .eq('email', email)
+          .single();
 
       if (existing) {
         worker = existing;
       } else {
         // Create worker with Google info
         isNewWorker = true;
-        const workerId = `GIG-G-${uid ? uid.slice(-6).toUpperCase() : Math.floor(100000 + Math.random() * 900000)}`;
+        const tempDbId = `PENDING-${uid ? uid.slice(-6).toUpperCase() : Math.floor(100000 + Math.random() * 900000)}`;
         const { data: created, error } = await supabase
           .from('workers')
           .insert({
@@ -58,43 +59,47 @@ const googleLogin = async (req, res) => {
             city: 'Bengaluru',
             zone: 'Indiranagar',
             platform: 'Zomato',
-            worker_id: workerId,
+            worker_id: tempDbId,
             avg_weekly_income: 4500,
-            upi_id: `${email.split('@')[0]}@okaxis`,
-            kyc_status: 'verified'
+            upi_id: '',
+            kyc_status: 'pending'
           })
           .select()
           .single();
 
-        if (error) {
-          console.warn('[Auth googleLogin]: Supabase insert error, falling back to in-memory:', error.message);
-          worker = {
-            id: `google_${uid || Date.now()}`,
-            name: displayName || email.split('@')[0],
-            email: email,
-            photo_url: photoURL || '',
-            mobile: '',
-            city: 'Bengaluru',
-            zone: 'Indiranagar',
-            platform: 'Zomato',
-            worker_id: workerId,
-            avg_weekly_income: 4500,
-            upi_id: `${email.split('@')[0]}@okaxis`,
-            kyc_status: 'verified'
-          };
-          mockWorkerStore.set(worker.id, worker);
-          mockWorkerStore.set(email, worker);
-        } else {
-          worker = created;
+          if (error) {
+            console.warn('[Auth googleLogin]: Supabase insert error, falling back to in-memory:', error.message);
+            worker = {
+              id: `google_${uid || Date.now()}`,
+              name: displayName || email.split('@')[0],
+              email: email,
+              photo_url: photoURL || '',
+              mobile: '',
+              city: 'Bengaluru',
+              zone: 'Indiranagar',
+              platform: 'Zomato',
+              worker_id: '',
+              avg_weekly_income: 4500,
+              upi_id: '',
+              kyc_status: 'pending'
+            };
+            mockWorkerStore.set(worker.id, worker);
+            mockWorkerStore.set(email, worker);
+          } else {
+            worker = created;
+          }
         }
+      } catch (sbErr) {
+        console.warn('[Auth googleLogin]: Supabase exception, falling back to in-memory:', sbErr.message);
       }
-    } else {
+    }
+
+    if (!worker) {
       // In-memory fallback
       worker = mockWorkerStore.get(email) || mockWorkerStore.get(`google_${uid}`);
 
       if (!worker) {
         isNewWorker = true;
-        const workerId = `GIG-G-${uid ? uid.slice(-6).toUpperCase() : Math.floor(100000 + Math.random() * 900000)}`;
         worker = {
           id: `google_${uid || Date.now()}`,
           name: displayName || email.split('@')[0],
@@ -104,15 +109,24 @@ const googleLogin = async (req, res) => {
           city: 'Bengaluru',
           zone: 'Indiranagar',
           platform: 'Zomato',
-          worker_id: workerId,
+          worker_id: '',
           avg_weekly_income: 4500,
-          upi_id: `${email.split('@')[0]}@okaxis`,
-          kyc_status: 'verified',
+          upi_id: '',
+          kyc_status: 'pending',
           isNew: true
         };
         mockWorkerStore.set(worker.id, worker);
         mockWorkerStore.set(email, worker);
       }
+    }
+
+    if (isNewWorker && worker) {
+      worker.worker_id = '';
+      worker.workerId = '';
+      worker.upi_id = '';
+      worker.upiId = '';
+      worker.kyc_status = 'pending';
+      worker.kycStatus = 'pending';
     }
 
     const token = generateToken(worker.id, worker.email || worker.id);
@@ -142,18 +156,24 @@ const getMe = async (req, res) => {
   try {
     let worker = null;
 
-    if (process.env.SUPABASE_URL) {
-      const { data, error } = await supabase
-        .from('workers')
-        .select('*')
-        .eq('id', req.worker.id)
-        .single();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('workers')
+          .select('*')
+          .eq('id', req.worker.id)
+          .single();
 
-      if (error) throw new Error(error.message);
-      worker = data;
-    } else {
+        if (!error && data) worker = data;
+      } catch (err) {
+        console.warn('[Auth getMe]: Supabase query exception, falling back to in-memory store:', err.message);
+      }
+    }
+
+    if (!worker) {
       worker = mockWorkerStore.get(req.worker.id) || 
                (req.worker.email ? mockWorkerStore.get(req.worker.email) : null) || 
+               (req.worker.mobile ? mockWorkerStore.get(req.worker.mobile) : null) || 
                req.worker;
     }
 

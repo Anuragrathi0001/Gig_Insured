@@ -15,7 +15,7 @@ create table if not exists workers (
   mobile                 text not null unique,
   city                   text not null default '',
   zone                   text not null default '',
-  platform               text not null default 'Zomato' check (platform in ('Zomato', 'Swiggy')),
+  platform               text not null default 'Zomato' check (platform in ('Zomato', 'Swiggy', 'Other')),
   worker_id              text not null unique,
   avg_weekly_income      numeric default 0 check (avg_weekly_income >= 0),
   kyc_status             text default 'pending' check (kyc_status in ('pending', 'verified', 'rejected')),
