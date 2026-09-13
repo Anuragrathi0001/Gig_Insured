@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Zap, CheckCircle2, IndianRupee, ArrowRight, RefreshCw, AlertCircle, CreditCard, Sparkles, X, Lock, Check } from 'lucide-react';
+import { Shield, Zap, CheckCircle2, IndianRupee, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, CreditCard, Sparkles, X, Lock, Check } from 'lucide-react';
 import axios from 'axios';
 
-export default function PlanSelection({ onPolicyActivated }) {
+export default function PlanSelection({ onPolicyActivated, onBack, isRegistrationFlow = false }) {
   const { worker } = useAuth();
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +97,61 @@ export default function PlanSelection({ onPolicyActivated }) {
 
   return (
     <div className="space-y-6">
+      {/* Onboarding Journey Step Indicator (Step 3: Plan Selection) */}
+      {isRegistrationFlow && (
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 mb-6 pb-4 border-b border-[var(--border)]">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black bg-emerald-500 text-white">
+              ✓
+            </div>
+            <span className="text-xs font-bold text-emerald-500">
+              Partner Profile
+            </span>
+          </div>
+
+          <div className="flex-1 h-[2px] bg-emerald-500 mx-2 rounded-full" />
+
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black bg-emerald-500 text-white">
+              ✓
+            </div>
+            <span className="text-xs font-bold text-emerald-500">
+              AI Risk Engine
+            </span>
+          </div>
+
+          <div className="flex-1 h-[2px] bg-[var(--primary)] mx-2 rounded-full" />
+
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-[var(--primary)] text-[var(--primary-foreground)] ring-2 ring-[var(--primary)]/30 flex items-center justify-center text-xs font-black">
+              3
+            </div>
+            <span className="text-xs font-extrabold text-[var(--primary)]">
+              Plan Selection
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Back button */}
+      {onBack && (
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3 mb-4 sm:mb-6">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[calc(var(--radius)*0.5)] bg-[var(--card)] hover:bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] hover:border-[var(--primary)]/40 text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95 group"
+          >
+            <ArrowLeft className="w-4 h-4 text-[var(--primary)] group-hover:-translate-x-0.5 transition-transform" />
+            <span>{isRegistrationFlow ? 'Back to Step 2: AI Risk Engine' : 'Back to Dashboard'}</span>
+          </button>
+          {!isRegistrationFlow && (
+            <span className="text-xs font-medium text-[var(--muted-foreground)] hidden sm:inline">
+              Policy Upgrade &amp; Management
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="text-center max-w-xl mx-auto mb-5 sm:mb-8">
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 text-xs font-semibold mb-2 sm:mb-3">
@@ -107,7 +162,9 @@ export default function PlanSelection({ onPolicyActivated }) {
           Select Your Weekly Income Protection Plan
         </h2>
         <p className="text-[var(--muted-foreground)] text-xs sm:text-sm mt-1.5">
-          Tailored to your zone <strong className="text-[var(--primary)]">{worker?.zone || 'Indiranagar'}</strong> risk score. Tap a plan to select.
+          {isRegistrationFlow
+            ? `Step 3 of 3: Choose a protection plan tailored to your ${worker?.zone || 'Indiranagar'} risk profile`
+            : `Tailored to your zone ${worker?.zone || 'Indiranagar'} risk score. Tap a plan to select.`}
         </p>
       </div>
 
@@ -204,6 +261,20 @@ export default function PlanSelection({ onPolicyActivated }) {
         })}
       </div>
 
+      {/* Bottom return to dashboard option */}
+      {onBack && !isRegistrationFlow && (
+        <div className="text-center pt-2 pb-1">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 text-xs font-bold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer py-2 px-4 rounded-[calc(var(--radius)*0.5)] hover:bg-[var(--secondary)] border border-transparent hover:border-[var(--border)] active:scale-95"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-[var(--primary)]" />
+            <span>Cancel and return to Dashboard</span>
+          </button>
+        </div>
+      )}
+
       {/* Mock UPI Payment Modal — bottom-sheet on mobile, centered on desktop */}
       {isPayModalOpen && selectedTier && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md">
@@ -262,14 +333,21 @@ export default function PlanSelection({ onPolicyActivated }) {
             <button
               onClick={handleConfirmPaymentAndActivate}
               disabled={paymentLoading}
-              className="w-full py-3.5 px-4 rounded-[calc(var(--radius)*0.6)] bg-[var(--primary)] text-[var(--primary-foreground)] font-extrabold text-sm shadow-lg hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2 active:scale-95"
+              className="w-full py-3.5 px-4 rounded-[calc(var(--radius)*0.6)] bg-[var(--primary)] text-[var(--primary-foreground)] font-extrabold text-sm shadow-lg hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
             >
               {paymentLoading ? (
-                <RefreshCw className="w-5 h-5 animate-spin text-[var(--primary-foreground)]" />
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin text-[var(--primary-foreground)]" />
+                  <span>Activating Policy &amp; Initializing Telemetry...</span>
+                </>
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>Simulate UPI Payment (₹{selectedTier.weeklyPremium})</span>
+                  <span>
+                    {isRegistrationFlow
+                      ? `Complete Registration & Activate Policy (₹${selectedTier.weeklyPremium})`
+                      : `Confirm & Activate Policy (₹${selectedTier.weeklyPremium})`}
+                  </span>
                 </>
               )}
             </button>

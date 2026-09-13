@@ -16,53 +16,38 @@ const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, secret);
 
       // Try Supabase first, fall back to in-memory store
-      if (process.env.SUPABASE_URL) {
-        const { data: worker, error } = await supabase
-          .from('workers')
-          .select('*')
-          .eq('id', decoded.id)
-          .single();
+      if (supabase) {
+        try {
+          const { data: worker, error } = await supabase
+            .from('workers')
+            .select('*')
+            .eq('id', decoded.id)
+            .single();
 
-        if (error || !worker) {
-          // Fallback to in-memory store when Supabase unreachable
-          req.worker = mockWorkerStore.get(decoded.id) || 
-                       mockWorkerStore.get(decoded.mobile) || 
-                       (decoded.email ? mockWorkerStore.get(decoded.email) : null) || {
-            id: decoded.id,
-            mobile: decoded.mobile || '',
-            name: decoded.name || 'Delivery Partner',
-            platform: 'Zomato',
-            city: 'Bengaluru',
-            zone: 'Indiranagar',
-            worker_id: `WRK-${(decoded.mobile || decoded.id || '1234').slice(-4)}`,
-            avg_weekly_income: 4500,
-            kyc_status: 'verified',
-            upi_id: `${decoded.mobile || 'worker'}@paytm`
-          };
-        } else {
-          req.worker = worker;
+          if (!error && worker) {
+            req.worker = worker;
+          }
+        } catch (err) {
+          console.warn('[Auth Middleware]: Supabase query error, using in-memory store:', err.message);
         }
-      } else {
-        // No Supabase configured — use in-memory store
-        const memoryWorker = mockWorkerStore.get(decoded.id) || 
-                             (decoded.mobile ? mockWorkerStore.get(decoded.mobile) : null) || 
-                             (decoded.email ? mockWorkerStore.get(decoded.email) : null);
-        if (memoryWorker) {
-          req.worker = memoryWorker;
-        } else {
-          req.worker = {
-            id: decoded.id,
-            mobile: decoded.mobile || '',
-            name: 'Delivery Partner',
-            platform: 'Zomato',
-            city: 'Bengaluru',
-            zone: 'Indiranagar',
-            worker_id: `WRK-${(decoded.mobile || decoded.id || '1234').slice(-4)}`,
-            avg_weekly_income: 4500,
-            kyc_status: 'verified',
-            upi_id: `${decoded.mobile || 'worker'}@paytm`
-          };
-        }
+      }
+
+      if (!req.worker) {
+        // Use in-memory store
+        req.worker = mockWorkerStore.get(decoded.id) || 
+                     mockWorkerStore.get(decoded.mobile) || 
+                     (decoded.email ? mockWorkerStore.get(decoded.email) : null) || {
+          id: decoded.id,
+          mobile: decoded.mobile || '',
+          name: decoded.name || 'Delivery Partner',
+          platform: 'Zomato',
+          city: 'Bengaluru',
+          zone: 'Indiranagar',
+          worker_id: '',
+          avg_weekly_income: 4500,
+          kyc_status: 'pending',
+          upi_id: ''
+        };
       }
 
       if (!req.worker) {

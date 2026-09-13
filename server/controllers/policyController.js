@@ -104,35 +104,40 @@ const activatePolicy = async (req, res) => {
 
     const { coveragePeriodStart, coveragePeriodEnd } = getCurrentWeekBounds();
 
-    let policy;
+    let policy = null;
 
-    if (process.env.SUPABASE_URL) {
-      // Expire any existing active policy for this worker
-      await supabase
-        .from('policies')
-        .update({ status: 'Expired' })
-        .eq('worker_id', req.worker.id)
-        .eq('status', 'Active');
+    if (supabase) {
+      try {
+        // Expire any existing active policy for this worker
+        await supabase
+          .from('policies')
+          .update({ status: 'Expired' })
+          .eq('worker_id', req.worker.id)
+          .eq('status', 'Active');
 
-      const { data, error } = await supabase
-        .from('policies')
-        .insert({
-          worker_id: req.worker.id,
-          tier: chosenQuote.tier,
-          weekly_premium: chosenQuote.weeklyPremium,
-          weekly_benefit_cap: chosenQuote.weeklyBenefitCap,
-          coverage_period_start: coveragePeriodStart.toISOString(),
-          coverage_period_end: coveragePeriodEnd.toISOString(),
-          status: 'Active',
-          auto_renew: Boolean(autoRenew ?? true)
-        })
-        .select()
-        .single();
+        const { data, error } = await supabase
+          .from('policies')
+          .insert({
+            worker_id: req.worker.id,
+            tier: chosenQuote.tier,
+            weekly_premium: chosenQuote.weeklyPremium,
+            weekly_benefit_cap: chosenQuote.weeklyBenefitCap,
+            coverage_period_start: coveragePeriodStart.toISOString(),
+            coverage_period_end: coveragePeriodEnd.toISOString(),
+            status: 'Active',
+            auto_renew: Boolean(autoRenew ?? true)
+          })
+          .select()
+          .single();
 
-      if (error) throw new Error(error.message);
-      policy = data;
-    } else {
-      console.log('[Policy Controller]: Offline mode. Storing policy in-memory.');
+        if (!error && data) policy = data;
+      } catch (sbErr) {
+        console.warn('[Policy Controller]: Supabase error, using in-memory store:', sbErr.message);
+      }
+    }
+
+    if (!policy) {
+      console.log('[Policy Controller]: Offline / In-Memory mode. Storing policy in-memory.');
       policy = {
         id: `mock_policy_${Date.now()}`,
         worker_id: req.worker.id || req.worker.worker_id,
@@ -148,6 +153,23 @@ const activatePolicy = async (req, res) => {
         created_at: new Date().toISOString()
       };
       mockPolicyStore.set(req.worker.id?.toString() || req.worker.mobile, policy);
+    }
+
+    // Mark worker KYC status as verified upon policy activation
+    try {
+      if (supabase && req.worker?.id) {
+        await supabase.from('workers').update({ kyc_status: 'verified' }).eq('id', req.worker.id);
+      }
+      const { mockWorkerStore } = require('../models/Worker');
+      if (mockWorkerStore) {
+        const w = mockWorkerStore.get(req.worker.id?.toString()) || (req.worker.email && mockWorkerStore.get(req.worker.email));
+        if (w) {
+          w.kyc_status = 'verified';
+          w.kycStatus = 'verified';
+        }
+      }
+    } catch (e) {
+      // ignore
     }
 
     return res.status(200).json({
@@ -173,17 +195,23 @@ const getActivePolicy = async (req, res) => {
   try {
     let policy = null;
 
-    if (process.env.SUPABASE_URL) {
-      const { data } = await supabase
-        .from('policies')
-        .select('*')
-        .eq('worker_id', req.worker.id)
-        .eq('status', 'Active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      policy = data || null;
-    } else {
+    if (supabase) {
+      try {
+        const { data } = await supabase
+          .from('policies')
+          .select('*')
+          .eq('worker_id', req.worker.id)
+          .eq('status', 'Active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        policy = data || null;
+      } catch (err) {
+        console.warn('[Policy Controller]: Supabase active query error, using in-memory store:', err.message);
+      }
+    }
+
+    if (!policy) {
       policy = mockPolicyStore.get(req.worker.id?.toString() || req.worker.mobile) || null;
     }
 

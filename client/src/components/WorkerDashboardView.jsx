@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Zap, IndianRupee, Calendar, FileText, Download, PauseCircle, PlayCircle, RefreshCw, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Zap, IndianRupee, Calendar, FileText, Download, PauseCircle, PlayCircle, RefreshCw, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
 import axios from 'axios';
 
 export default function WorkerDashboardView({ onSwitchPlan }) {
@@ -18,7 +18,8 @@ export default function WorkerDashboardView({ onSwitchPlan }) {
       const res = await axios.get('/api/workers/dashboard');
       setData(res.data.dashboard);
       if (res.data.dashboard?.activePolicy) {
-        setAutoRenew(res.data.dashboard.activePolicy.autoRenew ?? true);
+        const pol = res.data.dashboard.activePolicy;
+        setAutoRenew(pol.autoRenew ?? pol.auto_renew ?? true);
       }
       setLoading(false);
     } catch (err) {
@@ -33,7 +34,7 @@ export default function WorkerDashboardView({ onSwitchPlan }) {
   };
 
   const handleDownloadInvoice = (invoiceId) => {
-    const textContent = `GIG INSURED - WEEKLY PREMIUM INVOICE\nInvoice Ref: ${invoiceId}\nWorker: ${data?.worker?.name}\nZone: ${data?.worker?.zone}\nPlan Tier: ${data?.activePolicy?.tier || 'Standard'}\nAmount Paid: ₹${data?.activePolicy?.weeklyPremium || 50}\nPayment Method: Mock UPI (Razorpay X)\nStatus: SUCCESS\nThank you for keeping your delivery earnings protected!`;
+    const textContent = `GIG INSURED - WEEKLY PREMIUM INVOICE\nInvoice Ref: ${invoiceId}\nWorker: ${data?.worker?.name || 'Worker'}\nZone: ${data?.worker?.zone || 'Zone'}\nPlan Tier: ${data?.activePolicy?.tier || 'Standard'}\nAmount Paid: ₹${data?.activePolicy?.weeklyPremium || data?.activePolicy?.weekly_premium || 50}\nPayment Method: Mock UPI (Razorpay X)\nStatus: SUCCESS\nThank you for keeping your delivery earnings protected!`;
     const blob = new Blob([textContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -51,7 +52,7 @@ export default function WorkerDashboardView({ onSwitchPlan }) {
     );
   }
 
-  const { worker, activePolicy, totalEarningsProtected, weeklyTimeline, premiumHistory, fraudRiskLevel } = data || {};
+  const { worker, activePolicy, totalEarningsProtected = 0, weeklyTimeline = [], premiumHistory = [], fraudRiskLevel } = data || {};
 
   return (
     <div className="space-y-6">
@@ -68,7 +69,7 @@ export default function WorkerDashboardView({ onSwitchPlan }) {
           </div>
           <p className="text-xl font-extrabold text-[var(--foreground)]">{activePolicy?.tier || 'Standard'} Tier</p>
           <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
-            Zone: <strong className="text-[var(--primary)]">{worker?.zone || 'Indiranagar'}</strong> (Cap ₹{activePolicy?.weeklyBenefitCap || 3000})
+            Zone: <strong className="text-[var(--primary)]">{worker?.zone || 'Indiranagar'}</strong> (Cap ₹{activePolicy?.weeklyBenefitCap || activePolicy?.weekly_benefit_cap || 3000})
           </p>
         </div>
 
@@ -78,29 +79,40 @@ export default function WorkerDashboardView({ onSwitchPlan }) {
             <span className="text-xs font-semibold text-[var(--muted-foreground)]">Earnings Protected</span>
             <IndianRupee className="w-4 h-4 text-[var(--primary)]" />
           </div>
-          <p className="text-3xl font-extrabold text-[var(--primary)]">₹{totalEarningsProtected}</p>
+          <p className="text-3xl font-extrabold text-[var(--primary)]">₹{totalEarningsProtected ?? 0}</p>
           <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">All-time parametric payouts disbursed</p>
         </div>
 
         {/* Qualitative Risk Level Masking Card */}
         <div className="p-5 rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] shadow-md">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-[var(--muted-foreground)]">Account Safety Status</span>
-            <ShieldCheck className="w-4 h-4 text-[var(--accent)]" />
-          </div>
-          <p className="text-xl font-extrabold text-[var(--foreground)]">
+            <span className="text-xs font-bold text-[var(--foreground)]/80 tracking-tight">Account Safety Status</span>
             {fraudRiskLevel ? (
-              <span className="text-[var(--chart-3)] flex items-center gap-1">
-                <AlertTriangle className="w-4 h-4" /> {fraudRiskLevel} Risk Flag
+              <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            ) : (
+              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            )}
+          </div>
+          <div className="text-xl font-extrabold">
+            {fraudRiskLevel ? (
+              <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5 tracking-tight font-extrabold">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>{fraudRiskLevel} Risk Flag</span>
               </span>
             ) : (
-              <span className="text-[var(--primary)] flex items-center gap-1">
-                <CheckCircle2 className="w-4 h-4" /> Trusted Partner
+              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 tracking-tight font-extrabold">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>Trusted Partner</span>
               </span>
             )}
-          </p>
-          <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">
-            {fraudRiskLevel ? 'Telemetry review active' : 'Clean telemetry & verified KYC'}
+          </div>
+          <p className="text-xs font-medium text-[var(--muted-foreground)] mt-1.5 flex items-center gap-1.5">
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                fraudRiskLevel ? 'bg-amber-500 dark:bg-amber-400 animate-pulse' : 'bg-emerald-500'
+              }`}
+            />
+            <span>{fraudRiskLevel ? 'Telemetry review active' : 'Clean telemetry & verified KYC'}</span>
           </p>
         </div>
       </div>
@@ -128,11 +140,11 @@ export default function WorkerDashboardView({ onSwitchPlan }) {
               <div className="text-[9px] sm:text-[11px] font-bold text-[var(--foreground)]">{t.day}</div>
               <div className="text-[8px] sm:text-[10px] text-[var(--muted-foreground)] hidden xs:block">{t.date}</div>
               <div className="mt-1">
-                {t.status.includes('Payout') ? (
+                {t.status?.includes('Payout') ? (
                   <span className="px-1 py-0.5 rounded text-[7px] sm:text-[9px] font-extrabold bg-[var(--primary)] text-[var(--primary-foreground)] block">
                     ₹PAID
                   </span>
-                ) : t.status.includes('Disruption') ? (
+                ) : t.status?.includes('Disruption') ? (
                   <span className="px-1 py-0.5 rounded text-[7px] sm:text-[9px] font-extrabold bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/30 block">
                     ⚡
                   </span>
@@ -155,27 +167,27 @@ export default function WorkerDashboardView({ onSwitchPlan }) {
         </div>
 
         <div className="space-y-2">
-          {(premiumHistory || []).map((inv) => (
+          {(premiumHistory || []).map((inv, idx) => (
             <div
-              key={inv.invoiceId}
+              key={inv.invoiceId || inv.id || idx}
               className="p-3 sm:p-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)] flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2 text-xs"
             >
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-[var(--foreground)] flex flex-wrap items-center gap-1.5">
-                  <span className="truncate">{inv.tier} Plan Premium</span>
+                  <span className="truncate">{inv.tier || 'Standard'} Plan Premium</span>
                   <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 shrink-0">
-                    {inv.status}
+                    {inv.status || 'PAID'}
                   </span>
                 </div>
                 <div className="text-[10px] sm:text-[11px] text-[var(--muted-foreground)] mt-0.5 truncate">
-                  {inv.invoiceId} · {inv.date}
+                  {inv.invoiceId || inv.id || `INV-${idx}`} · {inv.date || 'Active'}
                 </div>
               </div>
               <div className="flex items-center justify-between xs:justify-end gap-3 shrink-0">
-                <span className="font-extrabold text-[var(--foreground)] text-sm">₹{inv.amount}</span>
+                <span className="font-extrabold text-[var(--foreground)] text-sm">₹{inv.amount ?? 50}</span>
                 <button
-                  onClick={() => handleDownloadInvoice(inv.invoiceId)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-[calc(var(--radius)*0.4)] bg-[var(--secondary)] hover:bg-[var(--secondary)]/80 text-[var(--secondary-foreground)] font-medium transition-colors border border-[var(--border)] active:scale-95"
+                  onClick={() => handleDownloadInvoice(inv.invoiceId || inv.id || `INV-${idx}`)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-[calc(var(--radius)*0.4)] bg-[var(--secondary)] hover:bg-[var(--secondary)]/80 text-[var(--secondary-foreground)] font-medium transition-colors border border-[var(--border)] active:scale-95 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-[var(--primary)]" />
                   <span>Invoice</span>

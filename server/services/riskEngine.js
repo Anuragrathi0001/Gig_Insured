@@ -41,10 +41,12 @@ const calculateRiskProfile = ({ city, zone, platform, avgWeeklyIncome }) => {
   let zoneRiskScore = zoneStats.baseZoneRisk;
   let weatherExposureScore = zoneStats.weatherExposure;
 
-  // Platform adjustment (Swiggy / Zomato order volume shifts)
+  // Platform adjustment (Swiggy / Zomato / Other order volume shifts)
   if (platform === 'Swiggy') {
     zoneRiskScore += 3;
   } else if (platform === 'Zomato') {
+    zoneRiskScore += 2;
+  } else {
     zoneRiskScore += 2;
   }
 

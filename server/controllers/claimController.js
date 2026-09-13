@@ -6,7 +6,90 @@ const { mockPolicyStore } = require('./policyController');
 const { mockWorkerStore } = require('./authController');
 
 // In-memory mock claim store for offline DB fallback
-const mockClaimsStore = [];
+const initialMockClaims = [
+  {
+    id: 'claim_demo_01',
+    claimId: '81_781',
+    worker_id: 'mock_worker_demo',
+    disruption_type: 'Rain',
+    claim_state: 'Paid',
+    payout_amount: 284,
+    transaction_ref: 'RZP_PYUT_PQJDEY9C',
+    created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString()
+  },
+  {
+    id: 'claim_demo_02',
+    claimId: '92_529',
+    worker_id: 'mock_worker_demo',
+    disruption_type: 'Rain',
+    claim_state: 'Paid',
+    payout_amount: 429,
+    transaction_ref: 'RZP_PYUT_UAR6HZX8',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString()
+  },
+  {
+    id: 'claim_demo_03',
+    claimId: '92_452',
+    worker_id: 'mock_worker_demo',
+    disruption_type: 'Rain',
+    claim_state: 'Paid',
+    payout_amount: 429,
+    transaction_ref: 'RZP_PYUT_QD2Q0FOW',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString()
+  },
+  {
+    id: 'claim_demo_04',
+    claimId: '91_915',
+    worker_id: 'mock_worker_demo',
+    disruption_type: 'Rain',
+    claim_state: 'Paid',
+    payout_amount: 429,
+    transaction_ref: 'RZP_PYUT_3NA8BLJG',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString()
+  },
+  {
+    id: 'claim_demo_05',
+    claimId: '88_120',
+    worker_id: 'mock_worker_demo',
+    disruption_type: 'Rain',
+    claim_state: 'Paid',
+    payout_amount: 350,
+    transaction_ref: 'RZP_PYUT_DEMO8812',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString()
+  },
+  {
+    id: 'claim_demo_06',
+    claimId: '85_401',
+    worker_id: 'mock_worker_demo',
+    disruption_type: 'Heat',
+    claim_state: 'Paid',
+    payout_amount: 300,
+    transaction_ref: 'RZP_PYUT_DEMO8540',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString()
+  },
+  {
+    id: 'claim_demo_07',
+    claimId: '82_930',
+    worker_id: 'mock_worker_demo',
+    disruption_type: 'Flood',
+    claim_state: 'Paid',
+    payout_amount: 500,
+    transaction_ref: 'RZP_PYUT_DEMO8293',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 120).toISOString()
+  },
+  {
+    id: 'claim_demo_08',
+    claimId: '79_114',
+    worker_id: 'mock_worker_demo',
+    disruption_type: 'AQI',
+    claim_state: 'Paid',
+    payout_amount: 250,
+    transaction_ref: 'RZP_PYUT_DEMO7911',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 144).toISOString()
+  }
+];
+
+const mockClaimsStore = [...initialMockClaims];
 
 /**
  * Derives hours lost from disruption type & severity
@@ -286,34 +369,59 @@ const autoCreateClaimsForTrigger = async (triggerEvent) => {
 };
 
 /**
- * @desc    Get current worker's claims
- * @route   GET /api/claims/my-claims
+ * @desc    Get current worker's claims (with pagination support)
+ * @route   GET /api/claims/my-claims?page=1&limit=5
  */
 const getMyClaims = async (req, res) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 5));
+    const offset = (page - 1) * limit;
+
     let claims = [];
+    let total = 0;
 
     if (process.env.SUPABASE_URL) {
+      const { count: totalCount, error: countErr } = await supabase
+        .from('claims')
+        .select('*', { count: 'exact', head: true })
+        .eq('worker_id', req.worker.id);
+
+      if (countErr) throw new Error(countErr.message);
+
+      total = totalCount || 0;
+
       const { data, error } = await supabase
         .from('claims')
         .select('*, trigger_events(*)')
         .eq('worker_id', req.worker.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
       if (error) throw new Error(error.message);
       claims = data || [];
     } else {
-      claims = mockClaimsStore.filter(c =>
+      const allWorkerClaims = mockClaimsStore.filter(c =>
         c.worker_id === req.worker.id ||
         c.workerMobile === req.worker.mobile ||
         c.worker_id === req.worker.worker_id
       );
-      if (claims.length === 0) claims = mockClaimsStore;
+      const filtered = allWorkerClaims.length > 0 ? allWorkerClaims : mockClaimsStore;
+      total = filtered.length;
+      claims = filtered.slice(offset, offset + limit);
     }
+
+    const totalPages = Math.ceil(total / limit);
+    const hasMore = page < totalPages;
 
     return res.status(200).json({
       status: 'success',
       count: claims.length,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasMore,
       claims
     });
   } catch (error) {

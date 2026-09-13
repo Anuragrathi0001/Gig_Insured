@@ -4,23 +4,30 @@ import { ShieldCheck, Calendar, IndianRupee, Clock, RefreshCw, CheckCircle2, Zap
 export default function ActivePolicyCard({ policy, onSwitchPlan }) {
   if (!policy) return null;
 
-  const startDate = new Date(policy.coveragePeriodStart).toLocaleDateString('en-IN', {
+  const rawStart = policy.coveragePeriodStart || policy.coverage_period_start;
+  const rawEnd = policy.coveragePeriodEnd || policy.coverage_period_end;
+  const startDate = rawStart ? new Date(rawStart).toLocaleDateString('en-IN', {
     weekday: 'short',
     month: 'short',
     day: 'numeric'
-  });
-  const endDate = new Date(policy.coveragePeriodEnd).toLocaleDateString('en-IN', {
+  }) : 'Mon';
+  const endDate = rawEnd ? new Date(rawEnd).toLocaleDateString('en-IN', {
     weekday: 'short',
     month: 'short',
     day: 'numeric'
-  });
+  }) : 'Sun';
 
   // Calculate days remaining in coverage week
   const now = new Date();
-  const end = new Date(policy.coveragePeriodEnd);
+  const end = rawEnd ? new Date(rawEnd) : new Date(Date.now() + 7 * 86400000);
   const diffTime = end - now;
   const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   const progressPercent = Math.min(100, Math.max(0, Math.round(((7 - diffDays) / 7) * 100)));
+
+  const weeklyPremium = policy.weeklyPremium ?? policy.weekly_premium ?? 50;
+  const weeklyBenefitCap = policy.weeklyBenefitCap ?? policy.weekly_benefit_cap ?? 3000;
+  const hourlyDisruptionRate = policy.hourlyDisruptionRate ?? policy.hourly_disruption_rate ?? 250;
+  const isAutoRenew = policy.autoRenew ?? policy.auto_renew ?? true;
 
   return (
     <div className="rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] p-6 sm:p-8 shadow-xl relative overflow-hidden text-[var(--card-foreground)]">
@@ -35,7 +42,7 @@ export default function ActivePolicyCard({ policy, onSwitchPlan }) {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-extrabold text-[var(--foreground)]">{policy.tier} Tier Income Coverage</h3>
+              <h3 className="text-lg font-extrabold text-[var(--foreground)]">{policy.tier || 'Standard'} Tier Income Coverage</h3>
               <span className="px-2.5 py-0.5 rounded-full bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 text-xs font-extrabold flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse"></span>
                 Active 🛡️
@@ -80,21 +87,21 @@ export default function ActivePolicyCard({ policy, onSwitchPlan }) {
           <span className="text-[11px] text-[var(--muted-foreground)] font-medium flex items-center gap-1 mb-1">
             <IndianRupee className="w-3.5 h-3.5 text-[var(--primary)]" /> Weekly Premium Paid
           </span>
-          <p className="text-base font-extrabold text-[var(--foreground)]">₹{policy.weeklyPremium}</p>
+          <p className="text-base font-extrabold text-[var(--foreground)]">₹{weeklyPremium}</p>
         </div>
 
         <div className="p-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)]">
           <span className="text-[11px] text-[var(--muted-foreground)] font-medium flex items-center gap-1 mb-1">
             <Zap className="w-3.5 h-3.5 text-[var(--primary)]" /> Max Weekly Cap
           </span>
-          <p className="text-base font-extrabold text-[var(--foreground)]">₹{policy.weeklyBenefitCap?.toLocaleString('en-IN')}</p>
+          <p className="text-base font-extrabold text-[var(--foreground)]">₹{weeklyBenefitCap?.toLocaleString('en-IN')}</p>
         </div>
 
         <div className="p-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)]">
           <span className="text-[11px] text-[var(--muted-foreground)] font-medium flex items-center gap-1 mb-1">
             <Clock className="w-3.5 h-3.5 text-[var(--accent)]" /> Disruption Rate
           </span>
-          <p className="text-xs font-bold text-[var(--foreground)] mt-1">₹{policy.hourlyDisruptionRate || 250}/hr lost</p>
+          <p className="text-xs font-bold text-[var(--foreground)] mt-1">₹{hourlyDisruptionRate}/hr lost</p>
         </div>
 
         <div className="p-3.5 rounded-[calc(var(--radius)*0.5)] bg-[var(--background)] border border-[var(--border)]">
@@ -102,9 +109,9 @@ export default function ActivePolicyCard({ policy, onSwitchPlan }) {
             <RefreshCw className="w-3.5 h-3.5 text-[var(--primary)]" /> Auto-Renew
           </span>
           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
-            policy.autoRenew ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30' : 'bg-[var(--secondary)] text-[var(--muted-foreground)]'
+            isAutoRenew ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30' : 'bg-[var(--secondary)] text-[var(--muted-foreground)]'
           }`}>
-            {policy.autoRenew ? 'Enabled (UPI)' : 'Disabled'}
+            {isAutoRenew ? 'Enabled (UPI)' : 'Disabled'}
           </span>
         </div>
       </div>

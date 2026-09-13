@@ -11,7 +11,10 @@ const isProd = import.meta.env.PROD || !import.meta.env.DEV;
 let backendUrl = 'https://gig-insured.onrender.com';
 
 if (!isProd) {
-  backendUrl = envUrl || 'http://localhost:5000';
+  const currentHost = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? window.location.hostname
+    : 'localhost';
+  backendUrl = envUrl ? envUrl.replace('localhost', currentHost) : `http://${currentHost}:5001`;
 } else if (envUrl && !envUrl.includes('localhost')) {
   backendUrl = envUrl;
 }
