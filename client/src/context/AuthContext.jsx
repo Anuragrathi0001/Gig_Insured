@@ -162,6 +162,9 @@ export const AuthProvider = ({ children }) => {
     }
     localStorage.removeItem('gig_token');
     localStorage.removeItem('gig_worker');
+    localStorage.removeItem('gig_active_policy');
+    localStorage.removeItem('gig_dashboard_cache');
+    localStorage.removeItem('gig_claims_cache');
     setToken(null);
     setWorkerState(null);
     setFirebaseUser(null);

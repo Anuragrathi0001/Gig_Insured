@@ -7,6 +7,7 @@ import ActivePolicyCard from '../components/ActivePolicyCard';
 import ClaimsList from '../components/ClaimsList';
 import WorkerDashboardView from '../components/WorkerDashboardView';
 import LandingPage from '../components/LandingPage';
+import DashboardSkeleton from '../components/DashboardSkeleton';
 import {
   ShieldCheck, Zap, AlertTriangle, IndianRupee,
   CheckCircle2, RefreshCw, PlusCircle, WifiOff
@@ -21,8 +22,26 @@ export default function WorkerPortal() {
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [showPlanSelection, setShowPlanSelection] = useState(false);
   const [fromOnboarding, setFromOnboarding] = useState(false);
-  const [activePolicy, setActivePolicy] = useState(null);
-  const [policyLoading, setPolicyLoading] = useState(false);
+
+  // Optimistic initial policy state from localStorage to eliminate 10-15s delay on refresh
+  const [activePolicy, setActivePolicy] = useState(() => {
+    try {
+      const cached = localStorage.getItem('gig_active_policy');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Only show blocking skeleton if there is no cached policy available
+  const [policyLoading, setPolicyLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('gig_active_policy');
+    } catch {
+      return true;
+    }
+  });
+
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
@@ -57,15 +76,21 @@ export default function WorkerPortal() {
   }, [isAuthenticated]);
 
   const fetchActivePolicy = async () => {
-    setPolicyLoading(true);
+    // Only show full blocking skeleton if there is no active policy cached
+    if (!activePolicy) {
+      setPolicyLoading(true);
+    }
     try {
       const res = await axios.get('/api/policy/active');
       if (res.data.hasActivePolicy && res.data.policy) {
         setActivePolicy(res.data.policy);
+        localStorage.setItem('gig_active_policy', JSON.stringify(res.data.policy));
         // Only clear views if not actively in onboarding
         setShowPlanSelection(prev => (prev ? false : prev));
       } else {
         setActivePolicy(null);
+        localStorage.removeItem('gig_active_policy');
+        localStorage.removeItem('gig_dashboard_cache');
       }
     } catch (err) {
       console.error('Failed to fetch active policy', err);
@@ -76,6 +101,9 @@ export default function WorkerPortal() {
 
   const handlePolicyActivated = (newPolicy) => {
     setActivePolicy(newPolicy);
+    if (newPolicy) {
+      localStorage.setItem('gig_active_policy', JSON.stringify(newPolicy));
+    }
     setShowPlanSelection(false);
     setShowOnboarding(false);
   };
@@ -164,7 +192,7 @@ export default function WorkerPortal() {
               </div>
 
               {/* Right: compact action buttons */}
-              {!activePolicy && (
+              {!activePolicy && !policyLoading && (
                 <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                   <button
                     onClick={() => { setFromOnboarding(false); setShowPlanSelection(true); setShowOnboarding(false); }}
@@ -210,6 +238,8 @@ export default function WorkerPortal() {
             <WorkerDashboardView onSwitchPlan={() => { setFromOnboarding(false); setShowPlanSelection(true); }} />
             <ClaimsList />
           </div>
+        ) : policyLoading ? (
+          <DashboardSkeleton />
         ) : (
           <div className="p-6 sm:p-10 text-center bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius)] shadow-md space-y-4">
             <div className="w-14 h-14 rounded-[calc(var(--radius)*0.7)] bg-[var(--primary)]/15 text-[var(--primary)] flex items-center justify-center mx-auto border border-[var(--primary)]/30">
